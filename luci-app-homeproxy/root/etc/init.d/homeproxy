@@ -468,18 +468,6 @@ stop_service() {
 		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
 		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
 	else
-		# The nftset-backed sets (gfw_list/mainland_addr/wan_*) were just
-		# flushed and recreated empty above. dnsmasq's own DNS answer
-		# cache is untouched by that, so a domain whose resolution is
-		# still cached will not re-trigger its nftset= directive and its
-		# IP never gets reinserted into the new (empty) set - the domain
-		# silently stops matching until something forces a fresh upstream
-		# lookup. A full restart would fix it but bounces the listening
-		# socket and causes a brief DNS outage on every node switch,
-		# which reload_service() triggers often. SIGHUP only clears
-		# dnsmasq's cache without rebinding the socket, so the next
-		# query for each domain goes upstream again and repopulates the
-		# set via the same still-loaded nftset= rule.
 		killall -HUP dnsmasq 2>"/dev/null"
 	fi
 
