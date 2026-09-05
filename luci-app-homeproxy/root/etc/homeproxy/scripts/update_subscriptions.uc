@@ -38,7 +38,15 @@ function filter_check(name) {
 
 	let ret = false;
 	for (let i in filter_keywords) {
-		const patten = regexp(i);
+		let patten;
+		try {
+			patten = regexp(i);
+		} catch (e) {
+
+			if (index(name, i) >= 0)
+				ret = true;
+			continue;
+		}
 		if (match(name, patten))
 			ret = true;
 	}
@@ -774,7 +782,6 @@ function parse_uri(uri) {
 				if (decodeBase64Str(ss_suri[0]))
 					uri[1] = decodeBase64Str(ss_suri[0]) + ss_slabel;
 			}
-
 
 			url = parseURL('http://' + uri[1]) || {};
 

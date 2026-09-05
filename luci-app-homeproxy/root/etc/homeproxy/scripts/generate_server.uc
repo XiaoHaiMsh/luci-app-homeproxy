@@ -2,12 +2,11 @@
 
 'use strict';
 
-import { writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
 	isEmpty, strToBool, strToInt, strToTime,
-	removeBlankAttrs, HP_DIR, RUN_DIR
+	removeBlankAttrs, atomicWrite, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
 const uci = cursor();
@@ -35,9 +34,6 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 	if (cfg.enabled !== '1')
 		return;
 
-	/* sing-box >= 1.14.0: inline tls.acme is deprecated in favor of a
-	   top-level certificate provider referenced by tag; inline acme is
-	   removed entirely in 1.16.0. */
 	let acme_tag = (cfg.tls === '1' && cfg.tls_acme === '1') ? 'cfg-' + cfg['.name'] + '-acme' : null;
 	if (acme_tag)
 		push(config.certificate_providers, {
@@ -178,4 +174,4 @@ if (length(config.certificate_providers) === 0)
 	config.certificate_providers = null;
 
 system('mkdir -p ' + RUN_DIR);
-writefile(RUN_DIR + '/sing-box-s.json', sprintf('%.J\n', removeBlankAttrs(config)));
+atomicWrite(RUN_DIR + '/sing-box-s.json', sprintf('%.J\n', removeBlankAttrs(config)));

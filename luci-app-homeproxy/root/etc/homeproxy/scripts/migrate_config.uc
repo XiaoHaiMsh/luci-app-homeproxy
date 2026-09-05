@@ -204,6 +204,10 @@ uci.foreach(uciconfig, uciroutingrule, (cfg) => {
 	}
 });
 
+const current_proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode');
+if (current_proxy_mode === 'redirect_tun')
+	uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
+
 const auto_firewall = uci.get(uciconfig, uciserver, 'auto_firewall');
 if (!isEmpty(auto_firewall))
 	uci.delete(uciconfig, uciserver, 'auto_firewall');

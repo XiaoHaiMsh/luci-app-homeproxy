@@ -100,7 +100,7 @@ start_service() {
 	config_foreach check_core_sub_url "custom_profile"
 
 	if [ "$has_core_sub" = "1" ]; then
-		sync_cron_tag "${CONF}_core_sub_autosetup" "* * * * * /usr/bin/ucode -S $HP_DIR/scripts/update_core_subscriptions.uc >/dev/null 2>&1 #${CONF}_core_sub_autosetup"
+		sync_cron_tag "${CONF}_core_sub_autosetup" "* * * * * /usr/bin/flock -n /var/run/$CONF/core-subscriptions.lock /usr/bin/ucode -S $HP_DIR/scripts/update_core_subscriptions.uc >/dev/null 2>&1 #${CONF}_core_sub_autosetup"
 	else
 		sync_cron_tag "${CONF}_core_sub_autosetup" ""
 	fi
@@ -159,7 +159,7 @@ start_service() {
 		local core_run_path="$RUN_DIR/sing-box-core.json"
 
 		mkdir -p "$CACHE_DIR"
-		chown -R sing-box:sing-box "$CACHE_DIR"
+		chown sing-box:sing-box "$CACHE_PATH"
 
 		if ucode -S "$HP_DIR/scripts/inject_core_cache.uc" "$core_orig_path" "$core_run_path" 2>>"$LOG_PATH" \
 		   && [ -s "$core_run_path" ] \
@@ -200,7 +200,7 @@ start_service() {
 
 	local routing_mode proxy_mode
 	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
-	config_get proxy_mode "config" "proxy_mode" "redirect_tproxy"
+	config_get proxy_mode "config" "proxy_mode" "tun"
 
 	local outbound_node="$main_node"
 
@@ -208,7 +208,14 @@ start_service() {
 	config_get_bool server_enabled "server" "enabled" "0"
 
 	if [ "$outbound_node" = "nil" ] && [ "$server_enabled" = "0" ]; then
-		return 1
+		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
+		: > "$RUN_DIR/fw4_forward.nft"
+		: > "$RUN_DIR/fw4_input.nft"
+		: > "$RUN_DIR/fw4_post.nft"
+		fw4 reload >/dev/null 2>&1
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		log "Service is disabled (no client node and server is disabled)."
+		return 0
 	fi
 
 	if [ "$outbound_node" = "nil" ] && { [ -d "$DNSMASQ_DIR" ] || [ -f "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" ]; }; then
@@ -233,12 +240,20 @@ start_service() {
 		"bypass_mainland_china")
 			mkdir -p "$CACHE_DIR"
 			touch "$CACHE_PATH"
-			chown -R sing-box:sing-box "$CACHE_DIR"
+			chown sing-box:sing-box "$CACHE_PATH"
+			;;
+		"gfwlist"|"proxy_mainland_china")
+			if [ "$proxy_mode" = "tun" ]; then
+				mkdir -p "$CACHE_DIR"
+				touch "$CACHE_PATH"
+				chown sing-box:sing-box "$CACHE_PATH"
+			fi
 			;;
 		esac
 
 		local auto_update auto_update_time
 		config_get_bool auto_update "subscription" "auto_update" "0"
+		sync_cron_tag "${CONF}_autosetup" ""
 		if [ "$auto_update" = "1" ]; then
 			config_get auto_update_time "subscription" "auto_update_time" "2"
 			sync_cron_tag "${CONF}_autosetup" "0 $auto_update_time * * * $HP_DIR/scripts/update_crond.sh #${CONF}_autosetup"
@@ -273,6 +288,13 @@ start_service() {
 			;;
 		esac
 
+		if [ -s "$HP_DIR/resources/direct_list.txt" ]; then
+			local wan_direct_nftset_v6
+			[ "$ipv6_support" -eq "0" ] || wan_direct_nftset_v6=",6#inet#fw4#homeproxy_wan_direct_addr_v6"
+			sed -r -e '/^\s*$/d' -e "s/(.*)/nftset=\/\1\\/4#inet#fw4#homeproxy_wan_direct_addr_v4$wan_direct_nftset_v6/g" \
+				"$HP_DIR/resources/direct_list.txt" > "$dns_new_dir/direct_list.conf"
+		fi
+
 		if [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
 			local wan_nftset_v6
 			[ "$ipv6_support" -eq "0" ] || wan_nftset_v6=",6#inet#fw4#homeproxy_wan_proxy_addr_v6"
@@ -292,29 +314,18 @@ start_service() {
 				local tproxy_mark
 				config_get tproxy_mark "infra" "tproxy_mark" "101"
 
+				ip rule del fwmark "$tproxy_mark" table "$table_mark" 2>/dev/null
 				ip rule add fwmark "$tproxy_mark" table "$table_mark"
-				ip route add local 0.0.0.0/0 dev lo table "$table_mark"
+				ip route replace local 0.0.0.0/0 dev lo table "$table_mark"
 
 				if [ "$ipv6_support" -eq "1" ]; then
+					ip -6 rule del fwmark "$tproxy_mark" table "$table_mark" 2>/dev/null
 					ip -6 rule add fwmark "$tproxy_mark" table "$table_mark"
-					ip -6 route add local ::/0 dev lo table "$table_mark"
+					ip -6 route replace local ::/0 dev lo table "$table_mark"
 				fi
 			fi
 			;;
 		"redirect_tun"|"tun")
-			local tun_name tun_mark
-			config_get tun_name "infra" "tun_name" "singtun0"
-			config_get tun_mark "infra" "tun_mark" "102"
-
-			ip tuntap add mode tun user root name "$tun_name"
-			ip link show "$tun_name" >"/dev/null" 2>&1 || sleep 1s
-			ip link set "$tun_name" up
-
-			ip route replace default dev "$tun_name" table "$table_mark"
-			ip rule add fwmark "$tun_mark" lookup "$table_mark"
-
-			ip -6 route replace default dev "$tun_name" table "$table_mark"
-			ip -6 rule add fwmark "$tun_mark" lookup "$table_mark"
 			;;
 		esac
 
@@ -331,7 +342,7 @@ start_service() {
 			procd_add_jail_mount_rw "$RUN_DIR/sing-box-c.log"
 			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount_rw "$CACHE_PATH"
 			procd_add_jail_mount "$HP_DIR/certs/"
-			[ ! -d "$HP_DIR/dashboard" ] || { chown -R sing-box:sing-box "$HP_DIR/dashboard"; procd_add_jail_mount "$HP_DIR/dashboard/"; }
+			[ ! -d "$HP_DIR/dashboard" ] || procd_add_jail_mount "$HP_DIR/dashboard/"
 			procd_add_jail_mount "/etc/ssl/"
 			procd_add_jail_mount "/etc/localtime"
 			procd_add_jail_mount "/etc/TZ"
@@ -399,7 +410,14 @@ start_service() {
 	"bypass_mainland_china")
 		mkdir -p "$CACHE_DIR"
 		[ -e "$CACHE_PATH" ] || touch "$CACHE_PATH"
-		chown -R sing-box:sing-box "$CACHE_DIR"
+		chown sing-box:sing-box "$CACHE_PATH" 2>/dev/null
+		;;
+	"gfwlist"|"proxy_mainland_china")
+		if [ "$proxy_mode" = "tun" ]; then
+			mkdir -p "$CACHE_DIR"
+			[ -e "$CACHE_PATH" ] || touch "$CACHE_PATH"
+			chown sing-box:sing-box "$CACHE_PATH" 2>/dev/null
+		fi
 		;;
 	esac
 
@@ -468,7 +486,12 @@ stop_service() {
 		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
 		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
 	else
-		killall -HUP dnsmasq 2>"/dev/null"
+		# nftset集合(gfw_list/mainland_addr/wan_proxy_addr/wan_direct_addr等)
+		# 在上面已被无条件删除重建为空集,即使dnsmasq自身conf.d内容未变、
+		# 不会走sync_dnsmasq_dir的重启分支,也必须清空dnsmasq缓存,
+		# 否则后续命中缓存的查询不会重新触发nftset写入,导致对应域名
+		# 在本轮reload期间持续路由失败,直到缓存自然过期或手动重启dnsmasq。
+		killall -SIGHUP dnsmasq >"/dev/null" 2>&1
 	fi
 
 	rm -f "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.log" \
@@ -479,11 +502,15 @@ stop_service() {
 
 service_stopped() {
 	config_load "$CONF"
-	local tun_name
+	local proxy_mode tun_name
+	config_get proxy_mode "config" "proxy_mode" "tun"
+	[ "$proxy_mode" = "tun" ] || [ "$proxy_mode" = "redirect_tun" ] || return 0
 	config_get tun_name "infra" "tun_name" "singtun0"
 
-	ip link set "$tun_name" down 2>"/dev/null"
-	ip tuntap del mode tun name "$tun_name" 2>"/dev/null"
+	if ip link show "$tun_name" >/dev/null 2>&1; then
+		ip link set "$tun_name" down 2>/dev/null
+		ip tuntap del mode tun name "$tun_name" 2>/dev/null
+	fi
 }
 
 reload_service() {

@@ -74,12 +74,19 @@ cat >"$tmp_dir/config.json" <<-'EOF'
         "tag": "geosite-noncn",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/geolocation-!cn.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "gfw-list",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs"
       }
     ],
     "rules": [
       { "rule_set": "geoip-cn", "outbound": "direct" },
       { "rule_set": "geosite-cn", "outbound": "direct" },
-      { "rule_set": "geosite-noncn", "outbound": "direct" }
+      { "rule_set": "geosite-noncn", "outbound": "direct" },
+      { "rule_set": "gfw-list", "outbound": "direct" }
     ],
     "final": "direct"
   },
@@ -91,6 +98,8 @@ cat >"$tmp_dir/config.json" <<-'EOF'
   }
 }
 EOF
+
+rm -f "$tmp_dir/cache.db"
 
 (
 	cd "$tmp_dir" || exit 1
@@ -114,6 +123,7 @@ done
 
 [ -s "$tmp_dir/cache.db" ] || { rm -rf "$tmp_dir"; skip "cache.db was not generated, keeping local cache.db"; }
 
+rm -f "$CACHE_DIR/cache.db"
 mv -f "$tmp_dir/cache.db" "$CACHE_DIR/cache.db"
 chmod 644 "$CACHE_DIR/cache.db"
 log "[cache_db] Generated cache.db using sing-box $singbox_tag"

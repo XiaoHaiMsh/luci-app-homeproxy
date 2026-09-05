@@ -265,10 +265,11 @@ return view.extend({
 		}
 
 		function refreshStatus() {
-			return Promise.all([
-				L.resolveDefault(getServiceStatus(), false),
-				L.resolveDefault(callCurrentNode(), null)
-			]).then((res) => {
+			return L.resolveDefault(getServiceStatus(), false).then((isRunning) => {
+				if (!isRunning)
+					return [false, null];
+				return L.resolveDefault(callCurrentNode(), null).then((current) => [true, current]);
+			}).then((res) => {
 				let isRunning = res[0],
 				    current = res[1],
 				    currentNodeLabel = null,
@@ -467,6 +468,7 @@ return view.extend({
 		o.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
 		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
 		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'gfwlist', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
 		o.default = '223.5.5.5';
 		o.rmempty = false;
 		o.validate = function(section_id, value) {
@@ -524,16 +526,14 @@ return view.extend({
 		}
 
 		o = s.taboption('routing', form.ListValue, 'proxy_mode', _('Proxy mode'));
-		o.value('redirect', _('Redirect TCP'));
-		if (features.hp_has_tproxy)
-			o.value('redirect_tproxy', _('Redirect TCP + TProxy UDP'));
-		if (features.hp_has_ip_full && features.hp_has_tun) {
-			o.value('redirect_tun', _('Redirect TCP + Tun UDP'));
+		if (features.hp_has_tun) {
 			o.value('tun', _('Tun TCP/UDP'));
 		} else {
-			o.description = _('To enable Tun support, you need to install <code>ip-full</code> and <code>kmod-tun</code>');
+			o.description = _('To enable Tun support, you need to install <code>kmod-tun</code>');
 		}
-		o.default = 'redirect_tproxy';
+		if (features.hp_has_tproxy)
+			o.value('redirect_tproxy', _('Redirect TCP + TProxy UDP'));
+		o.default = 'tun';
 		o.rmempty = false;
 		o.depends({'main_node': /^((?!core_only).)+$/});
 
@@ -545,7 +545,6 @@ return view.extend({
 		}
 		o.value('system', _('System'));
 		o.default = 'system';
-		o.depends({'proxy_mode': 'redirect_tun', 'main_node': /^((?!core_only).)+$/});
 		o.depends({'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
 		o.rmempty = false;
 		o.onchange = function(ev, section_id, value) {
@@ -557,15 +556,6 @@ return view.extend({
 			else if (value === 'system')
 				desc.innerHTML = _('Less compatibility and sometimes better performance.');
 		}
-
-		o = s.taboption('routing', form.Flag, 'endpoint_independent_nat', _('Enable endpoint-independent NAT'),
-			_('Performance may degrade slightly, so it is not recommended to enable on when it is not needed.'));
-		o.default = o.disabled;
-		o.depends({'tcpip_stack': 'mixed', 'proxy_mode': 'redirect_tun', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'tcpip_stack': 'mixed', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'tcpip_stack': 'gvisor', 'proxy_mode': 'redirect_tun', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'tcpip_stack': 'gvisor', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
-		o.rmempty = false;
 
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
 		o.default = o.disabled;
