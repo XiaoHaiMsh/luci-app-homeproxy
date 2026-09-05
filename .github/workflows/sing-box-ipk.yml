@@ -41,7 +41,7 @@ jobs:
           sudo apt-get -qq install --no-install-recommends \
             build-essential clang flex bison g++ gawk gettext git \
             libelf-dev libncurses-dev libssl-dev python3 python3-setuptools \
-            rsync swig time unzip wget xsltproc zip zlib1g-dev zstd
+            rsync swig time unzip xsltproc zip zlib1g-dev zstd
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -140,13 +140,13 @@ jobs:
             )
             name="$(awk -F': ' '/^Package:/ { print $2; exit }' "$control_dir/control" 2>/dev/null)"
             rm -rf "$control_dir"
-            
+
             if [[ "$name" == "sing-box" ]]; then
               cp -p "$ipk" "$RUNNER_TEMP/output/"
               found=$((found + 1))
             fi
           done < <(find "$SDK_ROOT/bin" -type f -name 'sing-box_*.ipk' -print0)
-          
+
           [[ "$found" -ge 1 ]]
           cd "$RUNNER_TEMP/output"
           sha256sum -- *.ipk > SHA256SUMS
