@@ -1,5 +1,5 @@
 
-import { mkstemp, popen } from 'fs';
+import { mkstemp, popen, rename, writefile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
 export const HP_DIR = '/etc/homeproxy';
@@ -248,6 +248,17 @@ export function strToInt(str) {
 export function strToTime(str) {
 	return !isEmpty(str) ? (str + 's') : null;
 };
+
+export function atomicWrite(path, content) {
+	const tmp = `${path}.tmp`;
+	if (writefile(tmp, content) === null)
+		return false;
+	if (!rename(tmp, path)) {
+		system(`rm -f ${shellQuote(tmp)}`);
+		return false;
+	}
+	return true;
+}
 
 export function removeBlankAttrs(res) {
 	let content;

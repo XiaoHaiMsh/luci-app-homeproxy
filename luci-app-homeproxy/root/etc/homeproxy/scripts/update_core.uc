@@ -188,8 +188,6 @@ if (!access(CORE_BACKUP_BIN) && access(SINGBOX_BIN)) {
 	system(`cp -f ${shellQuote(SINGBOX_BIN)} ${shellQuote(CORE_BACKUP_BIN)}`);
 }
 
-system('/etc/init.d/homeproxy stop >/dev/null 2>&1');
-
 const extract_dir = '/tmp/singbox-core-extract';
 system(`rm -rf ${shellQuote(extract_dir)}; mkdir -p ${shellQuote(extract_dir)}`);
 const untar = system(`tar -xzf ${shellQuote(tmp_path)} -C ${shellQuote(extract_dir)} 2>/dev/null`, 60000);
@@ -202,11 +200,26 @@ if (untar === 0) {
 
 let ok = false;
 if (bin_path && length(bin_path) && access(bin_path)) {
-	system(`cp -f ${shellQuote(bin_path)} ${shellQuote(SINGBOX_BIN)} && chmod 755 ${shellQuote(SINGBOX_BIN)}`);
-	ok = true;
 
-	for (let p in core_cache_paths())
-		system(`rm -f ${shellQuote(p)} 2>/dev/null`);
+	const version_check = system(`${shellQuote(bin_path)} version -n >/dev/null 2>&1`, 15000);
+	if (version_check !== 0) {
+		system(`rm -rf ${shellQuote(extract_dir)} ${shellQuote(tmp_path)}`);
+		fail('installing', 'downloaded sing-box executable failed validation', version);
+	}
+
+	system('/etc/init.d/homeproxy stop >/dev/null 2>&1');
+	const new_bin = `${SINGBOX_BIN}.new`;
+	system(`rm -f ${shellQuote(new_bin)}; cp -f ${shellQuote(bin_path)} ${shellQuote(new_bin)} && chmod 755 ${shellQuote(new_bin)}`);
+	if (access(new_bin) && system(`${shellQuote(new_bin)} version -n >/dev/null 2>&1`, 15000) === 0 &&
+		system(`mv -f ${shellQuote(new_bin)} ${shellQuote(SINGBOX_BIN)}`) === 0)
+		ok = true;
+	else
+		system(`rm -f ${shellQuote(new_bin)}`);
+
+	if (ok) {
+		for (let p in core_cache_paths())
+			system(`rm -f ${shellQuote(p)} 2>/dev/null`);
+	}
 }
 
 system(`rm -rf ${shellQuote(extract_dir)} ${shellQuote(tmp_path)}`);

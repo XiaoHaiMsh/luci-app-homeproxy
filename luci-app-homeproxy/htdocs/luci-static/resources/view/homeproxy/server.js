@@ -411,7 +411,6 @@ return view.extend({
 		o.depends('transport', 'grpc');
 		o.modalonly = true;
 
-
 		o = s.option(form.DynamicList, 'http_host', _('Host'));
 		o.datatype = 'hostname';
 		o.depends('transport', 'http');
@@ -468,7 +467,6 @@ return view.extend({
 		o.value('Sec-WebSocket-Protocol');
 		o.depends('transport', 'ws');
 		o.modalonly = true;
-
 
 		o = s.option(form.Flag, 'multiplex', _('Multiplex'));
 		o.depends('type', 'shadowsocks');

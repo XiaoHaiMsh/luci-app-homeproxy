@@ -11,25 +11,13 @@ const uci = cursor();
 uci.load(cfgname);
 
 const main_node = uci.get(cfgname, 'config', 'main_node') || 'nil',
-      proxy_mode = uci.get(cfgname, 'config', 'proxy_mode') || 'redirect_tproxy';
+      proxy_mode = uci.get(cfgname, 'config', 'proxy_mode') || 'tun';
 
-let outbound_node, tun_name;
-if (match(proxy_mode, /tun/)) {
-	outbound_node = main_node;
-
-	if (outbound_node !== 'nil')
-		tun_name = uci.get(cfgname, 'infra', 'tun_name') || 'singtun0';
-}
-
+const outbound_node = main_node;
 const server_enabled = uci.get(cfgname, 'server', 'enabled');
 
 let forward = [],
     input = [];
-
-if (tun_name) {
-	push(forward, `oifname ${tun_name} counter accept comment "!${cfgname}: accept tun forward"`);
-	push(input ,`iifname ${tun_name} counter accept comment "!${cfgname}: accept tun input"`);
-}
 
 if (server_enabled === '1') {
 	uci.foreach(cfgname, 'server', (s) => {

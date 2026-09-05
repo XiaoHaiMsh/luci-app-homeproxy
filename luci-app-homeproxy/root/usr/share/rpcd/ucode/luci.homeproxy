@@ -291,7 +291,17 @@ const methods = {
 			const type = req.args?.type;
 			let result = {};
 
-			const fd = popen('/usr/bin/sing-box generate ' + type + ` ${req.args?.params || ''}`);
+			const raw_params = trim(req.args?.params || '');
+			let params_arg = '';
+			if (raw_params !== '') {
+				if (type !== 'ech-keypair')
+					return { result: false, error: 'illegal params' };
+				if (!match(raw_params, /^[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?)*$/))
+					return { result: false, error: 'illegal params' };
+				params_arg = ' ' + shellquote(raw_params);
+			}
+
+			const fd = popen('/usr/bin/sing-box generate ' + shellquote(type) + params_arg);
 			if (fd) {
 				let ech_cfg_set = false;
 				let ech_key_set = false;
@@ -516,6 +526,9 @@ const methods = {
 		args: { channel: 'channel' },
 		call: function(req) {
 			const channel = (req.args?.channel === 'stable') ? 'stable' : 'latest';
+			const current = job_read('core_official');
+			if (current?.state === 'running')
+				return { result: false, error: 'already updating' };
 
 			job_write('core_official', 'running', 'preparing');
 			system(`/usr/bin/ucode -S ${HP_DIR}/scripts/update_core.uc ${shellquote(channel)} >/dev/null 2>&1 &`);
@@ -535,8 +548,16 @@ const methods = {
 			if (!access(CORE_BACKUP_BIN))
 				return { result: false, error: 'no firmware-shipped backup found' };
 
+			const restore_tmp = `${SINGBOX_BIN}.restore`;
+			system(`rm -f ${shellquote(restore_tmp)}`);
+			const staged = system(`cp -f ${shellquote(CORE_BACKUP_BIN)} ${shellquote(restore_tmp)} && chmod 755 ${shellquote(restore_tmp)}`) === 0;
+			if (!staged || system(`${shellquote(restore_tmp)} version -n >/dev/null 2>&1`, 15000) !== 0) {
+				system(`rm -f ${shellquote(restore_tmp)}`);
+				return { result: false, error: 'backup executable failed validation' };
+			}
+
 			system('/etc/init.d/homeproxy stop >/dev/null 2>&1');
-			const ok = (system(`cp -f ${CORE_BACKUP_BIN} ${SINGBOX_BIN} && chmod 755 ${SINGBOX_BIN}`) === 0);
+			const ok = system(`mv -f ${shellquote(restore_tmp)} ${shellquote(SINGBOX_BIN)}`) === 0;
 			if (ok)
 				for (let p in core_cache_paths())
 					system(`rm -f ${shellquote(p)} 2>/dev/null`);
