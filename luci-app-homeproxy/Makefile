@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Copyright (C) 2022-2023 ImmortalWrt.org
 
 include $(TOPDIR)/rules.mk
 
@@ -31,3 +34,4 @@ endef
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
+# call BuildPackage - OpenWrt buildroot signature
