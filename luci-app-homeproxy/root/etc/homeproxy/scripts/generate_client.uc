@@ -613,7 +613,7 @@ if (!isEmpty(main_node)) {
 				push(config.outbounds, generate_outbound(main_udp_node_cfg));
 				config.outbounds[length(config.outbounds)-1].tag = 'main-udp-out';
 			}
-		} else if (first_node_id && main_node !== 'nil') {
+		} else if (main_udp_node !== 'nil' && first_node_id && main_node !== 'nil') {
 			main_udp_node = 'same';
 		}
 	}
@@ -840,6 +840,11 @@ if (!isEmpty(main_node)) {
 			network: 'udp',
 			action: 'route',
 			outbound: 'main-udp-out'
+		});
+	else if (main_udp_node === 'nil')
+		push(config.route.rules, {
+			network: 'udp',
+			action: 'reject'
 		});
 
 	config.route.final = gfwlist_tun ? 'direct-out' : 'main-out';
