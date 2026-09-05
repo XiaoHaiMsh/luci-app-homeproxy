@@ -55,7 +55,7 @@ function first_valid_node() {
 function valid_node_list(list) {
 	let result = [];
 	for (let id in list) {
-		if (uci.get_all(uciconfig, id)?.type)
+		if (uci.get(uciconfig, id) === ucinode)
 			push(result, id);
 	}
 	return result;
@@ -85,9 +85,9 @@ const main_node_setting = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 main_node = main_node_setting;
 main_udp_node = uci.get(uciconfig, ucimain, 'main_udp_node') || 'nil';
 const first_node_id = first_valid_node();
-if (main_node !== 'nil' && main_node !== 'core_only' && main_node !== 'urltest' && !uci.get_all(uciconfig, main_node)?.type)
+if (main_node !== 'nil' && main_node !== 'core_only' && main_node !== 'urltest' && uci.get(uciconfig, main_node) !== ucinode)
 	main_node = first_node_id || 'nil';
-if (main_udp_node !== 'nil' && main_udp_node !== 'same' && main_udp_node !== 'urltest' && !uci.get_all(uciconfig, main_udp_node)?.type)
+if (main_udp_node !== 'nil' && main_udp_node !== 'same' && main_udp_node !== 'urltest' && uci.get(uciconfig, main_udp_node) !== ucinode)
 	main_udp_node = first_node_id || 'nil';
 dedicated_udp_node = !isEmpty(main_udp_node) && !(main_udp_node in ['same', main_node]);
 
@@ -580,7 +580,7 @@ if (!isEmpty(main_node)) {
 		if (main_node_cfg.type === 'wireguard') {
 			push(config.endpoints, generate_endpoint(main_node_cfg));
 			config.endpoints[length(config.endpoints)-1].tag = 'main-out';
-		} else if (main_node_cfg.type) {
+		} else {
 			push(config.outbounds, generate_outbound(main_node_cfg));
 			config.outbounds[length(config.outbounds)-1].tag = 'main-out';
 		}
@@ -608,7 +608,7 @@ if (!isEmpty(main_node)) {
 			if (main_udp_node_cfg.type === 'wireguard') {
 				push(config.endpoints, generate_endpoint(main_udp_node_cfg));
 				config.endpoints[length(config.endpoints)-1].tag = 'main-udp-out';
-			} else if (main_udp_node_cfg.type) {
+			} else {
 				push(config.outbounds, generate_outbound(main_udp_node_cfg));
 				config.outbounds[length(config.outbounds)-1].tag = 'main-udp-out';
 			}
