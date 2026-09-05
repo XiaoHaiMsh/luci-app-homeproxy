@@ -523,7 +523,6 @@ if (match(proxy_mode, /tun/))
 		udp_timeout: strToTime(udp_timeout),
 		stack: tcpip_stack,
 		auto_redirect: true,
-		strict_route: false,
 		exclude_mptcp: true,
 		dns_mode: 'hijack',
 		include_interface: config_included_interfaces,
