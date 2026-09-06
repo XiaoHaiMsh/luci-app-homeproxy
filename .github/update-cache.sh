@@ -123,26 +123,6 @@ done
 
 [ -s "$tmp_dir/cache.db" ] || { rm -rf "$tmp_dir"; skip "cache.db was not generated, keeping local cache.db"; }
 
-BBOLT_BIN=""
-if command -v bbolt >"/dev/null" 2>&1; then
-	BBOLT_BIN="$(command -v bbolt)"
-elif command -v go >"/dev/null" 2>&1; then
-	GOBIN="$tmp_dir/gobin" go install go.etcd.io/bbolt/cmd/bbolt@latest >"/dev/null" 2>&1
-	[ -x "$tmp_dir/gobin/bbolt" ] && BBOLT_BIN="$tmp_dir/gobin/bbolt"
-fi
-
-if [ -n "$BBOLT_BIN" ]; then
-	if "$BBOLT_BIN" compact -o "$tmp_dir/cache.compact.db" "$tmp_dir/cache.db" 2>"/dev/null" \
-		&& [ -s "$tmp_dir/cache.compact.db" ]; then
-		mv -f "$tmp_dir/cache.compact.db" "$tmp_dir/cache.db"
-		log "[cache_db] Compacted cache.db via bbolt"
-	else
-		log "[cache_db] bbolt compact failed, using uncompacted cache.db"
-	fi
-else
-	log "[cache_db] bbolt CLI unavailable, using uncompacted cache.db"
-fi
-
 rm -f "$CACHE_DIR/cache.db"
 mv -f "$tmp_dir/cache.db" "$CACHE_DIR/cache.db"
 chmod 644 "$CACHE_DIR/cache.db"
