@@ -121,45 +121,12 @@ done
 [ -n "$singbox_pid" ] && kill "$singbox_pid" 2>"/dev/null"
 [ -n "$singbox_pid" ] && wait "$singbox_pid" 2>"/dev/null"
 
-[ -s "$tmp_dir/cache.db" ] || {
-	rm -rf "$tmp_dir"
-	skip "cache.db was not generated, keeping local cache.db"
-}
-
-# Compact the freshly generated BoltDB cache to remove unused/free pages.
-compact_db="$tmp_dir/cache.compact.db"
-
-if command -v bbolt >/dev/null 2>&1; then
-	bbolt compact -o "$compact_db" "$tmp_dir/cache.db" >/dev/null 2>&1 || {
-		rm -rf "$tmp_dir"
-		skip "Failed to compact cache.db, keeping local cache.db"
-	}
-elif command -v go >/dev/null 2>&1; then
-	go run go.etcd.io/bbolt/cmd/bbolt@latest \
-		compact -o "$compact_db" "$tmp_dir/cache.db" >/dev/null 2>&1 || {
-		rm -rf "$tmp_dir"
-		skip "Failed to compact cache.db with go run, keeping local cache.db"
-	}
-else
-	rm -rf "$tmp_dir"
-	skip "Neither bbolt nor go found, keeping local cache.db"
-fi
-
-[ -s "$compact_db" ] || {
-	rm -rf "$tmp_dir"
-	skip "Compacted cache.db was not generated, keeping local cache.db"
-}
-
-old_size="$(wc -c < "$tmp_dir/cache.db")"
-new_size="$(wc -c < "$compact_db")"
-
-log "[cache_db] Compact: $old_size -> $new_size bytes"
+[ -s "$tmp_dir/cache.db" ] || { rm -rf "$tmp_dir"; skip "cache.db was not generated, keeping local cache.db"; }
 
 rm -f "$CACHE_DIR/cache.db"
-mv -f "$compact_db" "$CACHE_DIR/cache.db"
+mv -f "$tmp_dir/cache.db" "$CACHE_DIR/cache.db"
 chmod 644 "$CACHE_DIR/cache.db"
-
-log "[cache_db] Generated fresh cache.db using sing-box $singbox_tag"
+log "[cache_db] Generated cache.db using sing-box $singbox_tag"
 
 rm -rf "$tmp_dir"
 exit 0
