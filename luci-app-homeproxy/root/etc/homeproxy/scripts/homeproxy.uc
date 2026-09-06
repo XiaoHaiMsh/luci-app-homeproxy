@@ -258,7 +258,7 @@ export function atomicWrite(path, content) {
 		return false;
 	}
 	return true;
-}
+};
 
 export function removeBlankAttrs(res) {
 	let content;
