@@ -134,9 +134,15 @@ if command -v bbolt >/dev/null 2>&1; then
 		rm -rf "$tmp_dir"
 		skip "Failed to compact cache.db, keeping local cache.db"
 	}
+elif command -v go >/dev/null 2>&1; then
+	go run go.etcd.io/bbolt/cmd/bbolt@latest \
+		compact -o "$compact_db" "$tmp_dir/cache.db" >/dev/null 2>&1 || {
+		rm -rf "$tmp_dir"
+		skip "Failed to compact cache.db with go run, keeping local cache.db"
+	}
 else
 	rm -rf "$tmp_dir"
-	skip "bbolt command not found, keeping local cache.db"
+	skip "Neither bbolt nor go found, keeping local cache.db"
 fi
 
 [ -s "$compact_db" ] || {
