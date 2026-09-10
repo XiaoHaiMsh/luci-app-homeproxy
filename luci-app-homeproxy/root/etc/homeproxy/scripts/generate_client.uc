@@ -105,7 +105,7 @@ const dns_port = uci.get(uciconfig, uciinfra, 'dns_port') || '5333';
 
 const ntp_server = uci.get(uciconfig, uciinfra, 'ntp_server') || 'time.apple.com';
 
-const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
+const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '1';
 
 let main_node, main_udp_node, dedicated_udp_node,
     dns_server, china_dns_server, dns_default_strategy,
@@ -196,7 +196,7 @@ if (match(proxy_mode, /tun/)) {
 	tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 	tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 	tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-	tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'system';
+	tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
 }
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
