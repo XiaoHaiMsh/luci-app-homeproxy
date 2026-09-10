@@ -141,6 +141,36 @@ proxy_domain_list = trim(readfile(HP_DIR + '/resources/proxy_list.txt'));
 if (proxy_domain_list)
 	proxy_domain_list = split(proxy_domain_list, /[\r\n]/);
 
+function hasForceProxyRules() {
+	if (routing_mode !== 'bypass_mainland_china')
+		return false;
+
+	let has_app_rule = false;
+	uci.foreach(uciconfig, uciapprule, (cfg) => {
+		if (cfg.enabled === '1' && !isEmpty(cfg.source))
+			has_app_rule = true;
+	});
+	if (has_app_rule)
+		return true;
+
+	if (length(proxy_domain_list))
+		return true;
+
+	const forced_ip_options = [
+		'lan_global_proxy_ipv4_ips', 'lan_global_proxy_ipv6_ips', 'lan_global_proxy_mac_addrs',
+		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips',
+		'lan_gaming_mode_ipv4_ips', 'lan_gaming_mode_ipv6_ips', 'lan_gaming_mode_mac_addrs'
+	];
+	for (let option in forced_ip_options)
+		if (!isEmpty(uci.get(uciconfig, ucicontrol, option)))
+			return true;
+
+	return false;
+}
+
+const force_proxy_rules = hasForceProxyRules();
+const fast_bypass_mainland = (routing_mode === 'bypass_mainland_china') && !force_proxy_rules;
+
 const default_interface = uci.get(uciconfig, ucicontrol, 'bind_interface');
 
 let routing_port = uci.get(uciconfig, ucimain, 'routing_port');
@@ -494,7 +524,8 @@ if (match(proxy_mode, /tun/))
 		exclude_mptcp: true,
 		dns_mode: 'hijack',
 		include_interface: config_included_interfaces,
-		route_exclude_address: length(local_interface_cidrs) ? local_interface_cidrs : null
+		route_exclude_address: length(local_interface_cidrs) ? local_interface_cidrs : null,
+		route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null
 	});
 
 config.endpoints = [];
@@ -751,6 +782,8 @@ if (match(proxy_mode, /tun/) && !isEmpty(main_node)) {
 		}
 	}
 
+	push(route_prefilter_rules, { inbound: 'tun-in', ip_is_private: true, action: 'bypass' });
+
 }
 
 config.route = {
@@ -1004,6 +1037,8 @@ if (!isEmpty(main_node)) {
 				push_app_dns_rule(domain_tag);
 		});
 	}
+
+	push(config.route.rules, { inbound: 'tun-in', ip_is_private: true, action: 'route', outbound: 'direct-out' });
 
 	if (routing_mode === 'bypass_mainland_china') {
 		push(config.dns.rules, {

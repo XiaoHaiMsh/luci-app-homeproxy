@@ -127,6 +127,36 @@ return baseclass.extend({
 			changed = true;
 		}
 
+		uci.sections(uciconfig, 'app_rule', (cfg) => {
+			const node = cfg.node || 'main-out';
+
+			if (node === 'urltest') {
+				const current = uci.get(uciconfig, cfg['.name'], 'urltest_nodes');
+				const normalized = Array.isArray(current) ? current : (current ? [ current ] : []);
+				const seen = Object.create(null);
+				const filtered = normalized.filter((n) => {
+					if (!n || seen[n] || !available[n])
+						return false;
+					seen[n] = true;
+					return true;
+				});
+
+				if (JSON.stringify(normalized) !== JSON.stringify(filtered)) {
+					uci.set(uciconfig, cfg['.name'], 'urltest_nodes', filtered.length ? filtered : null);
+					changed = true;
+				}
+
+				if (!filtered.length) {
+					uci.set(uciconfig, cfg['.name'], 'node', 'main-out');
+					changed = true;
+				}
+			}
+			else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && !available[node]) {
+				uci.set(uciconfig, cfg['.name'], 'node', 'main-out');
+				changed = true;
+			}
+		});
+
 		return changed;
 	},
 
