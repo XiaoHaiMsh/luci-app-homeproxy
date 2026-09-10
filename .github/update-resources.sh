@@ -2,7 +2,6 @@
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-RESOURCES_DIR="$REPO_ROOT/luci-app-homeproxy/root/etc/homeproxy/resources"
 DASHBOARD_DIR="$REPO_ROOT/luci-app-homeproxy/root/etc/homeproxy/dashboard"
 
 GH_API="https://api.github.com"
@@ -32,46 +31,7 @@ json_first_sha() {
 	fi
 }
 
-json_first_message() {
-	if command -v jq >"/dev/null" 2>&1; then
-		jq -r '.[0].commit.message // empty' 2>"/dev/null"
-	else
-		grep -o '"message"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1 | sed -E 's/.*:[[:space:]]*"//;s/"$//'
-	fi
-}
-
-mkdir -p "$RESOURCES_DIR" "$DASHBOARD_DIR" 2>"/dev/null"
-
-update_list() {
-	listtype="$1"
-	listrepo="$2"
-	listref="$3"
-	listname="$4"
-
-	list_info="$(curl_get "$GH_API/repos/$listrepo/commits?sha=$listref&path=$listname&per_page=1")"
-	[ -n "$list_info" ] || { skip "$listtype" "Failed to access GitHub API, keeping local version"; return 0; }
-
-	list_sha="$(printf '%s' "$list_info" | json_first_sha)"
-	list_ver="$(printf '%s' "$list_info" | json_first_message | grep -Eo '[0-9-]+' | tr -d '-' | head -n1)"
-	[ -n "$list_sha" ] && [ -n "$list_ver" ] || { skip "$listtype" "Failed to parse latest version, keeping local version"; return 0; }
-
-	local_ver="$(cat "$RESOURCES_DIR/$listtype.ver" 2>"/dev/null")"
-	[ "$local_ver" != "$list_ver" ] || { skip "$listtype" "Already up to date (version $list_ver)"; return 0; }
-
-	tmpfile="$(mktemp)"
-	curl -fsSL --connect-timeout 8 --max-time 30 --retry 2 --retry-delay 2 \
-		"https://fastly.jsdelivr.net/gh/$listrepo@$list_sha/$listname" -o "$tmpfile"
-	[ -s "$tmpfile" ] || { rm -f "$tmpfile"; skip "$listtype" "Download failed, keeping local version"; return 0; }
-
-	chmod 644 "$tmpfile"
-	mv -f "$tmpfile" "$RESOURCES_DIR/$listtype.${listname##*.}"
-	printf '%s\n' "$list_ver" >"$RESOURCES_DIR/$listtype.ver"
-	log "[$listtype] Updated to version $list_ver"
-
-	if [ "$listtype" = "china_list" ]; then
-		sed -i -e 's/full://g' -e '/:/d' "$RESOURCES_DIR/china_list.txt"
-	fi
-}
+mkdir -p "$DASHBOARD_DIR" 2>"/dev/null"
 
 update_dashboard() {
 	repo="SagerNet/sing-box-dashboard"
@@ -82,9 +42,9 @@ update_dashboard() {
 
 	commit_sha="$(printf '%s' "$commit_info" | json_first_sha)"
 	[ -n "$commit_sha" ] || { skip "dashboard" "Failed to parse latest version, keeping local version"; return 0; }
-	dashboard_ver="$(printf '%.7s' "$commit_sha")"
+	dashboard_ver="$commit_sha"
 
-	local_ver="$(cat "$RESOURCES_DIR/dashboard.ver" 2>"/dev/null")"
+	local_ver="$(cat "$DASHBOARD_DIR/dashboard.ver" 2>"/dev/null")"
 	if [ "$local_ver" = "$dashboard_ver" ] && [ -s "$DASHBOARD_DIR/index.html" ]; then
 		skip "dashboard" "Already up to date (version $dashboard_ver)"
 		return 0
@@ -121,17 +81,13 @@ update_dashboard() {
 	find "$DASHBOARD_DIR" -type d -exec chmod 755 {} \;
 	find "$DASHBOARD_DIR" -type f -exec chmod 644 {} \;
 
-	printf '%s\n' "$dashboard_ver" >"$RESOURCES_DIR/dashboard.ver"
+	printf '%s\n' "$dashboard_ver" >"$DASHBOARD_DIR/dashboard.ver"
 	log "[dashboard] Updated to version $dashboard_ver"
 
 	rm -f "$tmp_zip"
 	rm -rf "$tmp_extract"
 }
 
-update_list "china_ip4" "gaoyifan/china-operator-ip" "ip-lists" "china.txt"
-update_list "china_ip6" "gaoyifan/china-operator-ip" "ip-lists" "china6.txt"
-update_list "gfw_list" "Loyalsoldier/v2ray-rules-dat" "release" "gfw.txt"
-update_list "china_list" "Loyalsoldier/v2ray-rules-dat" "release" "direct-list.txt"
 update_dashboard
 
 sh "$SCRIPT_DIR/update-cache.sh"

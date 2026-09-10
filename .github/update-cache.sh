@@ -80,13 +80,97 @@ cat >"$tmp_dir/config.json" <<-'EOF'
         "tag": "gfw-list",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-youtube-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/youtube.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-tiktok-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/tiktok.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-telegram-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/telegram.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-telegram-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-twitter-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/twitter.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-twitter-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/twitter.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-google-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/google.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-google-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/google.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-cloudflare-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cloudflare.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-cloudflare-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cloudflare.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-github-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/github.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "app-rule-ai_noncn-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ai-!cn.srs"
       }
     ],
     "rules": [
       { "rule_set": "geoip-cn", "outbound": "direct" },
       { "rule_set": "geosite-cn", "outbound": "direct" },
       { "rule_set": "geosite-noncn", "outbound": "direct" },
-      { "rule_set": "gfw-list", "outbound": "direct" }
+      { "rule_set": "gfw-list", "outbound": "direct" },
+      { "rule_set": "app-rule-youtube-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-tiktok-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-telegram-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-telegram-ip", "outbound": "direct" },
+      { "rule_set": "app-rule-twitter-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-twitter-ip", "outbound": "direct" },
+      { "rule_set": "app-rule-google-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-google-ip", "outbound": "direct" },
+      { "rule_set": "app-rule-cloudflare-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-cloudflare-ip", "outbound": "direct" },
+      { "rule_set": "app-rule-github-domain", "outbound": "direct" },
+      { "rule_set": "app-rule-ai_noncn-domain", "outbound": "direct" }
     ],
     "final": "direct"
   },

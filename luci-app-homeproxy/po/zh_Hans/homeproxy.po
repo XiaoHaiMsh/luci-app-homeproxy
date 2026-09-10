@@ -262,18 +262,6 @@ msgstr "检查更新"
 msgid "China DNS server"
 msgstr "国内 DNS 服务器"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:244
-msgid "China IPv4 list version"
-msgstr "国内 IPv4 库版本"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:248
-msgid "China IPv6 list version"
-msgstr "国内 IPv6 库版本"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:252
-msgid "China list version"
-msgstr "国内域名列表版本"
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1064
 #: htdocs/luci-static/resources/view/homeproxy/server.js:586
 msgid "Cipher suites"
@@ -660,14 +648,6 @@ msgstr "流控"
 #: htdocs/luci-static/resources/view/homeproxy/node.js:842
 msgid "GET"
 msgstr "GET"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:256
-msgid "GFW list version"
-msgstr "GFW 域名列表版本"
-
-#: htdocs/luci-static/resources/view/homeproxy/client.js:252
-msgid "GFWList"
-msgstr "GFWList"
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:1446
 msgid "Gaming mode IPv4 IP-s"
@@ -1198,10 +1178,6 @@ msgstr "混淆类型"
 msgid "Only process traffic from specific interfaces. Leave empty for all."
 msgstr "只处理来自指定接口的流量。留空表示全部。"
 
-#: htdocs/luci-static/resources/view/homeproxy/client.js:254
-msgid "Only proxy mainland China"
-msgstr "仅代理中国大陆"
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:843
 msgid "PUT"
 msgstr "PUT"
@@ -1411,10 +1387,6 @@ msgstr "如留空，则使用随机版本。"
 msgid "Redirect TCP"
 msgstr "Redirect TCP"
 
-#: htdocs/luci-static/resources/view/homeproxy/client.js:287
-msgid "Redirect TCP + TProxy UDP"
-msgstr "Redirect TCP + TProxy UDP"
-
 #: htdocs/luci-static/resources/view/homeproxy/client.js:289
 msgid "Redirect TCP + Tun UDP"
 msgstr "Redirect TCP + Tun UDP"
@@ -1426,6 +1398,10 @@ msgstr "每 %s 秒刷新。"
 #: htdocs/luci-static/resources/view/homeproxy/server.js:659
 msgid "Region ID"
 msgstr "区域 ID"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:687
+msgid "Reject"
+msgstr "拒绝"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1593
 msgid "Remote"
@@ -2460,4 +2436,108 @@ msgstr "正在下载"
 #: htdocs/luci-static/resources/view/homeproxy/status.js
 msgid "Installing (service will restart)..."
 msgstr "正在安装..."
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Proxy Rules"
+msgstr "代理规则"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Service"
+msgstr "服务"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "YouTube"
+msgstr "YouTube"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "TikTok"
+msgstr "TikTok"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Telegram"
+msgstr "Telegram"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Twitter/X"
+msgstr "Twitter/X"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Separate URLTest"
+msgstr "独立测速组"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Custom"
+msgstr "自定义规则"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Custom rule type"
+msgstr "自定义规则类型"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Service name"
+msgstr "服务名"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:615
+msgid "e.g. My Service"
+msgstr "例如：我的服务"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Domain rule-set"
+msgstr "域名规则集"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "IP rule-set"
+msgstr "IP 规则集"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Mixed rule-set (domain + IP)"
+msgstr "混合规则集（域名 + IP）"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Domain list"
+msgstr "域名列表"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Domain rule-set URL"
+msgstr "域名规则集链接"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "IP rule-set URL"
+msgstr "IP 规则集链接"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "a valid URL starting with http:// or https://"
+msgstr "以 http:// 或 https:// 开头的合法链接"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Rule-set format"
+msgstr "规则集格式"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Binary (.srs)"
+msgstr "二进制格式（.srs）"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "JSON (.json)"
+msgstr "JSON 格式（.json）"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Custom domains"
+msgstr "自定义域名"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "One domain (or domain keyword) per line. Matches as a substring, same as the Proxy/Direct Domain List tabs."
+msgstr "每行一个域名（或域名关键词），按子串匹配，规则与\"代理域名列表/直连域名列表\"一致。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "Duplicate service — only the first rule will take effect"
+msgstr "服务重复——只有第一条规则会生效"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "GitHub"
+msgstr "GitHub"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js
+msgid "AI Services (Non-Mainland China)"
+msgstr "AI 服务（非中国大陆）"
 

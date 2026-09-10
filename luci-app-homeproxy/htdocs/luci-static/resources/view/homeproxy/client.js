@@ -369,7 +369,7 @@ return view.extend({
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
 		o.default = 'same';
-		o.depends({'proxy_mode': /^((?!redirect$).)+$/, 'main_node': /^((?!core_only).)+$/});
+		o.depends({'main_node': /^((?!core_only).)+$/});
 		o.rmempty = false;
 
 		o = s.taboption('routing', form.Button, '_open_dashboard', _('Actions'));
@@ -432,9 +432,7 @@ return view.extend({
 		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
 		o.default = '8.8.8.8';
 		o.rmempty = false;
-		o.depends({'routing_mode': 'gfwlist', 'main_node': /^((?!core_only).)+$/});
 		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'proxy_mainland_china', 'main_node': /^((?!core_only).)+$/});
 		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
 		o.validate = function(section_id, value) {
 			if (section_id && !['wan'].includes(value)) {
@@ -468,7 +466,6 @@ return view.extend({
 		o.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
 		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
 		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'gfwlist', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
 		o.default = '223.5.5.5';
 		o.rmempty = false;
 		o.validate = function(section_id, value) {
@@ -496,9 +493,7 @@ return view.extend({
 		}
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
-		o.value('gfwlist', _('GFWList'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
-		o.value('proxy_mainland_china', _('Only proxy mainland China'));
 		o.value('global', _('Global'));
 		o.default = 'bypass_mainland_china';
 		o.rmempty = false;
@@ -531,8 +526,6 @@ return view.extend({
 		} else {
 			o.description = _('To enable Tun support, you need to install <code>kmod-tun</code>');
 		}
-		if (features.hp_has_tproxy)
-			o.value('redirect_tproxy', _('Redirect TCP + TProxy UDP'));
 		o.default = 'tun';
 		o.rmempty = false;
 		o.depends({'main_node': /^((?!core_only).)+$/});
@@ -561,6 +554,147 @@ return view.extend({
 		o.default = o.disabled;
 		o.rmempty = false;
 		o.depends({'main_node': /^((?!core_only).)+$/});
+
+		s.tab('app_rules', _('Proxy Rules'));
+		o = s.taboption('app_rules', form.SectionValue, '_app_rules', form.GridSection, 'app_rule');
+		o.depends({'routing_mode': 'bypass_mainland_china', 'proxy_mode': 'tun'});
+
+		ss = o.subsection;
+		ss.addremove = true;
+		ss.anonymous = true;
+		ss.sortable = true;
+		ss.nodescriptions = true;
+
+		so = ss.option(form.Flag, 'enabled', _('Enable'));
+		so.default = so.enabled;
+		so.rmempty = false;
+		so.editable = true;
+
+		so = ss.option(form.Value, 'custom_service_name', _('Service name'));
+		so.placeholder = _('e.g. My Service');
+		so.depends('source', 'custom');
+		so.modalonly = true;
+
+		so = ss.option(form.ListValue, 'source', _('Service'));
+		so.value('youtube', _('YouTube'));
+		so.value('tiktok', _('TikTok'));
+		so.value('telegram', _('Telegram'));
+		so.value('twitter', _('Twitter/X'));
+		so.value('google', _('Google'));
+		so.value('cloudflare', _('Cloudflare'));
+		so.value('github', _('GitHub'));
+		so.value('ai_noncn', _('AI Services (Non-Mainland China)'));
+		so.value('custom', _('Custom'));
+		so.rmempty = false;
+
+		so.textvalue = function(section_id) {
+			if (this.cfgvalue(section_id) === 'custom') {
+				const name = (uci.get('homeproxy', section_id, 'custom_service_name') || '').trim();
+				return name ? '%h'.format(name) : _('Custom');
+			}
+			return form.ListValue.prototype.textvalue.apply(this, arguments);
+		};
+		so.validate = function(section_id, value) {
+			if (value === 'custom')
+				return true;
+			for (const sid of ss.cfgsections()) {
+				if (sid !== section_id && this.cfgvalue(sid) === value)
+					return _('Duplicate service — only the first rule will take effect');
+			}
+			return true;
+		};
+
+		so = ss.option(form.ListValue, 'custom_mode', _('Custom rule type'));
+		so.value('url_domain', _('Domain rule-set'));
+		so.value('url_ip', _('IP rule-set'));
+		so.value('url_mixed', _('Mixed rule-set (domain + IP)'));
+		so.value('domains', _('Domain list'));
+		so.default = 'url_domain';
+		so.rmempty = false;
+		so.depends('source', 'custom');
+		so.modalonly = true;
+
+		so = ss.option(form.DynamicList, 'custom_url', _('Domain rule-set URL'));
+		so.placeholder = 'https://example.com/rule-set.srs';
+		so.depends({'source': 'custom', 'custom_mode': 'url_domain'});
+		so.depends({'source': 'custom', 'custom_mode': 'url_mixed'});
+		so.modalonly = true;
+		so.validate = function(section_id, value) {
+			if (section_id && value && !/^https?:\/\/.+/.test(value))
+				return _('Expecting: %s').format(_('a valid URL starting with http:// or https://'));
+			return true;
+		};
+
+		so = ss.option(form.DynamicList, 'custom_url_ip', _('IP rule-set URL'));
+		so.placeholder = 'https://example.com/rule-set.srs';
+		so.depends({'source': 'custom', 'custom_mode': 'url_ip'});
+		so.depends({'source': 'custom', 'custom_mode': 'url_mixed'});
+		so.modalonly = true;
+		so.validate = function(section_id, value) {
+			if (section_id && value && !/^https?:\/\/.+/.test(value))
+				return _('Expecting: %s').format(_('a valid URL starting with http:// or https://'));
+			return true;
+		};
+
+		so = ss.option(form.ListValue, 'custom_format', _('Rule-set format'));
+		so.value('binary', _('Binary (.srs)'));
+		so.value('source', _('JSON (.json)'));
+		so.default = 'binary';
+		so.rmempty = false;
+		so.depends({'source': 'custom', 'custom_mode': 'url_domain'});
+		so.depends({'source': 'custom', 'custom_mode': 'url_ip'});
+		so.depends({'source': 'custom', 'custom_mode': 'url_mixed'});
+		so.modalonly = true;
+
+		so = ss.option(form.TextValue, 'custom_domains', _('Custom domains'),
+			_('One domain (or domain keyword) per line. Matches as a substring, same as the Proxy/Direct Domain List tabs.'));
+		so.rows = 5;
+		so.monospace = true;
+		so.datatype = 'hostname';
+		so.depends({'source': 'custom', 'custom_mode': 'domains'});
+		so.modalonly = true;
+		so.validate = function(section_id, value) {
+			if (section_id && value)
+				for (let i of value.split('\n')) {
+					i = i.trim();
+					if (i && !stubValidator.apply('hostname', i))
+						return _('Expecting: %s').format(_('valid hostname'));
+				}
+			return true;
+		};
+
+		so = ss.option(form.ListValue, 'node', _('Node'));
+		so.value('main-out', _('Same as main node'));
+		so.value('urltest', _('Separate URLTest'));
+		so.value('direct-out', _('Direct'));
+		so.value('reject-out', _('Reject'));
+		for (let i in proxy_nodes)
+			so.value(i, proxy_nodes[i]);
+		so.default = 'main-out';
+		so.rmempty = false;
+		so.editable = true;
+
+		so = ss.option(hp.CBIStaticList, 'urltest_nodes', _('URLTest nodes'),
+			_('List of nodes to test.'));
+		for (let i in proxy_nodes)
+			so.value(i, proxy_nodes[i]);
+		so.depends('node', 'urltest');
+		so.rmempty = false;
+		so.modalonly = true;
+
+		so = ss.option(form.Value, 'urltest_interval', _('Test interval'),
+			_('The test interval in seconds.'));
+		so.datatype = 'uinteger';
+		so.placeholder = '180';
+		so.depends('node', 'urltest');
+		so.modalonly = true;
+
+		so = ss.option(form.Value, 'urltest_tolerance', _('Test tolerance'),
+			_('The test tolerance in milliseconds.'));
+		so.datatype = 'uinteger';
+		so.placeholder = '150';
+		so.depends('node', 'urltest');
+		so.modalonly = true;
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_port', _('Listen port'));
 		o.default = '9096';
@@ -613,54 +747,61 @@ return view.extend({
 		so.value('except_listed', _('Proxy all except listed'));
 		so.default = 'disabled';
 		so.rmempty = false;
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Direct IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends('lan_proxy_mode', 'except_listed');
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv6_ips', _('Direct IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.ipv6_support': '1'});
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Direct MAC-s'), null, hosts);
-		so.depends('lan_proxy_mode', 'except_listed');
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends('lan_proxy_mode', 'listed_only');
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.ipv6_support': '1'});
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC-s'), null, hosts);
-		so.depends('lan_proxy_mode', 'listed_only');
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv4_ips', _('Gaming mode IPv4 IP-s'), null, 'ipv4', hosts, true);
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv6_ips', _('Gaming mode IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends('homeproxy.config.ipv6_support', '1');
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_gaming_mode_mac_addrs', _('Gaming mode MAC-s'), null, hosts);
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv4_ips', _('Global proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv6_ips', _('Global proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends('homeproxy.config.ipv6_support', '1');
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_global_proxy_mac_addrs', _('Global proxy MAC-s'), null, hosts);
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		ss.tab('wan_ip_policy', _('WAN IP Policy'));
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends('homeproxy.config.ipv6_support', '1');
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Direct IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Direct IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends('homeproxy.config.ipv6_support', '1');
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		ss.tab('proxy_domain_list', _('Proxy Domain List'));
 

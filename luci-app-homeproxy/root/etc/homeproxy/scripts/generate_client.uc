@@ -7,7 +7,7 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	createNodeLabelRegistry, isEmpty, parseURL, reserveUniqueLabel,
+	createNodeLabelRegistry, isEmpty, normalizeList, parseURL, reserveUniqueLabel,
 	strToBool, strToInt, strToTime,
 	removeBlankAttrs, atomicWrite, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -24,6 +24,38 @@ const uciinfra = 'infra',
       ucicontrol = 'control';
 
 const ucinode = 'node';
+const uciapprule = 'app_rule';
+
+const app_rule_urls = {
+	youtube: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/youtube.srs'
+	},
+	tiktok: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/tiktok.srs'
+	},
+	telegram: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/telegram.srs',
+		ip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs'
+	},
+	twitter: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/twitter.srs',
+		ip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/twitter.srs'
+	},
+	google: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/google.srs',
+		ip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/google.srs'
+	},
+	cloudflare: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cloudflare.srs',
+		ip: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cloudflare.srs'
+	},
+	github: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/github.srs'
+	},
+	ai_noncn: {
+		domain: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ai-!cn.srs'
+	}
+};
 
 const outbound_tags = createNodeLabelRegistry();
 const node_outbound_tags = {};
@@ -63,12 +95,11 @@ function valid_node_list(list) {
 
 const routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainland_china';
 const proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode') || 'tun';
-const gfwlist_tun = (routing_mode === 'gfwlist' && match(proxy_mode, /tun/));
-const china_dns_enabled = (routing_mode === 'bypass_mainland_china' || gfwlist_tun);
+const china_dns_enabled = (routing_mode === 'bypass_mainland_china');
 
 let wan_dns = ubus.call('network.interface', 'status', {'interface': 'wan'})?.['dns-server']?.[0];
 if (!wan_dns)
-	wan_dns = (routing_mode in ['proxy_mainland_china', 'global']) ? '8.8.8.8' : '223.5.5.5';
+	wan_dns = (routing_mode === 'global') ? '8.8.8.8' : '223.5.5.5';
 
 const dns_port = uci.get(uciconfig, uciinfra, 'dns_port') || '5333';
 
@@ -123,18 +154,12 @@ if (type(listen_interfaces) === 'array' && length(listen_interfaces))
 
 const mixed_port = uci.get(uciconfig, uciinfra, 'mixed_port') || '5330';
 
-let self_mark, redirect_port, tproxy_port, tun_name,
+let tun_name,
     tun_addr4, tun_addr6, tun_mtu, tcpip_stack,
     udp_timeout;
 
 udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
 
-if (match(proxy_mode, /redirect/)) {
-	self_mark = uci.get(uciconfig, 'infra', 'self_mark') || '100';
-	redirect_port = uci.get(uciconfig, 'infra', 'redirect_port') || '5331';
-}
-if (match(proxy_mode, /tproxy/))
-	tproxy_port = uci.get(uciconfig, 'infra', 'tproxy_port') || '5332';
 if (match(proxy_mode, /tun/)) {
 
 	tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
@@ -219,8 +244,6 @@ function generate_outbound(node) {
 	const outbound = {
 		type: node.type,
 		tag: node_out_tag(node['.name']),
-		routing_mark: match(proxy_mode, /redirect/) ? strToInt(self_mark) : null,
-
 		server: node.address,
 		server_port: strToInt(node.port),
 		server_ports: node.hysteria_hopping_port,
@@ -367,13 +390,13 @@ config.dns = {
 			tag: 'default-dns',
 			type: 'udp',
 			server: wan_dns,
-			detour: self_mark ? 'direct-out' : null
+			detour: null
 		},
 		{
 			tag: 'system-dns',
 			type: 'local',
 			neighbor_domain: ['.', '.lan'],
-			detour: self_mark ? 'direct-out' : null
+			detour: null
 		}
 	],
 	rules: [
@@ -401,14 +424,7 @@ if (!isEmpty(main_node)) {
 		detour: 'main-out',
 		...parse_dnsserver(dns_server, 'tcp')
 	});
-	config.dns.final = gfwlist_tun ? 'china-dns' : 'main-dns';
-
-	if (gfwlist_tun)
-		push(config.dns.rules, {
-			rule_set: 'gfw-list',
-			action: 'route',
-			server: 'main-dns'
-		});
+	config.dns.final = 'main-dns';
 
 	if (length(direct_domain_list))
 		push(config.dns.rules, {
@@ -417,10 +433,9 @@ if (!isEmpty(main_node)) {
 			server: china_dns_enabled ? 'china-dns' : 'default-dns'
 		});
 
-	const gfwlist_non_tun = (routing_mode === 'gfwlist' && !gfwlist_tun);
-	if (gfwlist_non_tun || length(proxy_domain_list))
+	if (length(proxy_domain_list))
 		push(config.dns.rules, {
-			rule_set: gfwlist_non_tun ? null : 'proxy-domain',
+			rule_set: 'proxy-domain',
 			query_type: [64, 65],
 			action: 'reject'
 		});
@@ -432,7 +447,7 @@ if (!isEmpty(main_node)) {
 				server: 'default-dns',
 				strategy: 'prefer_ipv6'
 			},
-			detour: self_mark ? 'direct-out' : null,
+			detour: null,
 			...parse_dnsserver(china_dns_server)
 		});
 
@@ -444,35 +459,6 @@ if (!isEmpty(main_node)) {
 			});
 	}
 
-	if (routing_mode === 'bypass_mainland_china') {
-		push(config.dns.rules, {
-			rule_set: 'geosite-cn',
-			action: 'route',
-			server: 'china-dns'
-		});
-		push(config.dns.rules, {
-			rule_set: 'geosite-noncn',
-			invert: true,
-			action: 'evaluate',
-			server: 'china-dns'
-		});
-		push(config.dns.rules, {
-			type: 'logical',
-			mode: 'and',
-			rules: [
-				{
-					rule_set: 'geosite-noncn',
-					invert: true
-				},
-				{
-					rule_set: 'geoip-cn',
-					match_response: true
-				}
-			],
-			action: 'route',
-			server: 'china-dns'
-		});
-	}
 }
 
 config.inbounds = [];
@@ -493,24 +479,6 @@ push(config.inbounds, {
 	set_system_proxy: false
 });
 
-if (match(proxy_mode, /redirect/))
-	push(config.inbounds, {
-		type: 'redirect',
-		tag: 'redirect-in',
-
-		listen: '::',
-		listen_port: int(redirect_port)
-	});
-if (match(proxy_mode, /tproxy/))
-	push(config.inbounds, {
-		type: 'tproxy',
-		tag: 'tproxy-in',
-
-		listen: '::',
-		listen_port: int(tproxy_port),
-		network: 'udp',
-		udp_timeout: strToTime(udp_timeout)
-	});
 if (match(proxy_mode, /tun/))
 	push(config.inbounds, {
 		type: 'tun',
@@ -534,8 +502,7 @@ config.endpoints = [];
 config.outbounds = [
 	{
 		type: 'direct',
-		tag: 'direct-out',
-		routing_mark: match(proxy_mode, /redirect/) ? strToInt(self_mark) : null
+		tag: 'direct-out'
 	},
 	{
 		type: 'block',
@@ -827,12 +794,249 @@ if (!isEmpty(main_node)) {
 			outbound: 'main-out'
 		});
 
-	if (match(proxy_mode, /tun/)) {
-		if (routing_mode === 'bypass_mainland_china')
-			push(config.route.rules, { rule_set: 'geoip-cn', action: 'route', outbound: 'direct-out' });
-		else if (routing_mode === 'proxy_mainland_china')
-			push(config.route.rules, { rule_set: 'geoip-cn', invert: true, action: 'route', outbound: 'direct-out' });
+	if (routing_mode !== 'global') {
+		const has_tag = (tag) => {
+			for (let ob in config.outbounds)
+				if (ob.tag === tag) return true;
+			for (let ep in (config.endpoints || []))
+				if (ep.tag === tag) return true;
+			return false;
+		};
+		const has_ruleset_tag = (tag) => {
+			for (let rs in config.route.rule_set)
+				if (rs.tag === tag) return true;
+			return false;
+		};
+		const add_node_outbound = (id, tag) => {
+			if (has_tag(tag))
+				return;
+			const nc = uci.get_all(uciconfig, id) || {};
+			if (nc.type === 'wireguard') {
+				push(config.endpoints, generate_endpoint(nc));
+				config.endpoints[length(config.endpoints)-1].tag = tag;
+			} else if (nc.type) {
+				push(config.outbounds, generate_outbound(nc));
+				config.outbounds[length(config.outbounds)-1].tag = tag;
+			}
+		};
+
+		uci.foreach(uciconfig, uciapprule, (cfg) => {
+			if (cfg.enabled !== '1' || isEmpty(cfg.source))
+				return;
+
+			let effective_outbound = 'main-out';
+			const node = cfg.node || 'main-out';
+
+			const custom_name = trim(cfg.custom_service_name || '');
+			const rule_label = (cfg.source === 'custom')
+				? ((!isEmpty(custom_name) ? custom_name : 'custom') + '-' + cfg['.name'])
+				: cfg.source;
+
+			if (node === 'main-out') {
+				effective_outbound = 'main-out';
+			} else if (node === 'direct-out') {
+				effective_outbound = 'direct-out';
+			} else if (node === 'reject-out') {
+				effective_outbound = 'block-out';
+			} else if (node === 'urltest') {
+				const rule_urltest_nodes = valid_node_list(cfg.urltest_nodes || []);
+				if (length(rule_urltest_nodes)) {
+					effective_outbound = 'app-' + rule_label + '-out';
+					if (!has_tag(effective_outbound)) {
+						push(config.outbounds, {
+							type: 'urltest',
+							tag: effective_outbound,
+							outbounds: map(rule_urltest_nodes, (k) => node_out_tag(k)),
+							interval: strToTime(cfg.urltest_interval || '180'),
+							tolerance: strToInt(cfg.urltest_tolerance || '150'),
+							idle_timeout: (strToInt(cfg.urltest_interval || '180') > 1800) ? `${(cfg.urltest_interval || '180') * 2}s` : null
+						});
+						for (let k in rule_urltest_nodes)
+							add_node_outbound(k, node_out_tag(k));
+					}
+				}
+			} else if (uci.get_all(uciconfig, node)?.type) {
+				effective_outbound = node_out_tag(node);
+				add_node_outbound(node, effective_outbound);
+			}
+
+			const rs_tag = 'app-rule-' + rule_label;
+
+			const dns_server = (node === 'direct-out') ? (china_dns_enabled ? 'china-dns' : 'default-dns') : 'main-dns';
+
+			const push_app_dns_rule = (tags) => {
+				if (node === 'reject-out')
+					push(config.dns.rules, { rule_set: tags, action: 'reject' });
+				else
+					push(config.dns.rules, { rule_set: tags, action: 'route', server: dns_server });
+			};
+
+			if (cfg.source === 'custom') {
+				const custom_mode = cfg.custom_mode || 'url_domain';
+
+				if (custom_mode === 'domains') {
+					const custom_domains = trim(cfg.custom_domains || '');
+					if (isEmpty(custom_domains))
+						return;
+
+					let custom_domain_list = [];
+					for (let d in split(custom_domains, /[\r\n]/)) {
+						d = trim(d);
+						if (!isEmpty(d))
+							push(custom_domain_list, d);
+					}
+					if (!length(custom_domain_list))
+						return;
+					push(config.route.rules, {
+						rule_set: rs_tag,
+						action: 'route',
+						outbound: effective_outbound
+					});
+					if (!has_ruleset_tag(rs_tag))
+						push(config.route.rule_set, {
+							type: 'inline',
+							tag: rs_tag,
+							rules: [
+								{
+									domain_keyword: custom_domain_list
+								}
+							]
+						});
+					push_app_dns_rule(rs_tag);
+					return;
+				}
+
+				const collect_urls = (list) => {
+					const out = [];
+					for (let u in normalizeList(list)) {
+						u = trim(u || '');
+						if (!isEmpty(u))
+							push(out, u);
+					}
+					return out;
+				};
+				const domain_urls = (custom_mode === 'url_domain' || custom_mode === 'url_mixed')
+					? collect_urls(cfg.custom_url) : [];
+				const ip_urls = (custom_mode === 'url_ip' || custom_mode === 'url_mixed')
+					? collect_urls(cfg.custom_url_ip) : [];
+
+				if (!length(domain_urls) && !length(ip_urls))
+					return;
+
+				const url_format = (cfg.custom_format === 'source') ? 'source' : 'binary';
+				let domain_tags = [];
+				let all_tags = [];
+				for (let i = 0; i < length(domain_urls); i++) {
+					const url_tag = rs_tag + '-domain-url' + i;
+					push(domain_tags, url_tag);
+					push(all_tags, url_tag);
+					if (!has_ruleset_tag(url_tag))
+						push(config.route.rule_set, {
+							type: 'remote',
+							tag: url_tag,
+							format: url_format,
+							url: domain_urls[i]
+						});
+				}
+				for (let i = 0; i < length(ip_urls); i++) {
+					const url_tag = rs_tag + '-ip-url' + i;
+					push(all_tags, url_tag);
+					if (!has_ruleset_tag(url_tag))
+						push(config.route.rule_set, {
+							type: 'remote',
+							tag: url_tag,
+							format: url_format,
+							url: ip_urls[i]
+						});
+				}
+
+				push(config.route.rules, {
+					rule_set: all_tags,
+					action: 'route',
+					outbound: effective_outbound
+				});
+				if (length(domain_tags))
+					push_app_dns_rule(domain_tags);
+				return;
+			}
+
+			const urls = app_rule_urls[cfg.source];
+			if (isEmpty(urls))
+				return;
+
+			let rs_tags = [];
+			let domain_tag = null;
+
+			if (!isEmpty(urls.domain)) {
+				domain_tag = rs_tag + '-domain';
+				push(rs_tags, domain_tag);
+				if (!has_ruleset_tag(domain_tag))
+					push(config.route.rule_set, {
+						type: 'remote',
+						tag: domain_tag,
+						format: 'binary',
+						url: urls.domain
+					});
+			}
+
+			if (!isEmpty(urls.ip)) {
+				const ip_tag = rs_tag + '-ip';
+				push(rs_tags, ip_tag);
+				if (!has_ruleset_tag(ip_tag))
+					push(config.route.rule_set, {
+						type: 'remote',
+						tag: ip_tag,
+						format: 'binary',
+						url: urls.ip
+					});
+			}
+
+			if (!length(rs_tags))
+				return;
+
+			push(config.route.rules, {
+				rule_set: rs_tags,
+				action: 'route',
+				outbound: effective_outbound
+			});
+
+			if (domain_tag)
+				push_app_dns_rule(domain_tag);
+		});
 	}
+
+	if (routing_mode === 'bypass_mainland_china') {
+		push(config.dns.rules, {
+			rule_set: 'geosite-cn',
+			action: 'route',
+			server: 'china-dns'
+		});
+		push(config.dns.rules, {
+			rule_set: 'geosite-noncn',
+			invert: true,
+			action: 'evaluate',
+			server: 'china-dns'
+		});
+		push(config.dns.rules, {
+			type: 'logical',
+			mode: 'and',
+			rules: [
+				{
+					rule_set: 'geosite-noncn',
+					invert: true
+				},
+				{
+					rule_set: 'geoip-cn',
+					match_response: true
+				}
+			],
+			action: 'route',
+			server: 'china-dns'
+		});
+	}
+
+	if (match(proxy_mode, /tun/) && routing_mode === 'bypass_mainland_china')
+		push(config.route.rules, { rule_set: 'geoip-cn', action: 'route', outbound: 'direct-out' });
 
 	if (main_udp_node === 'urltest' || dedicated_udp_node)
 		push(config.route.rules, {
@@ -846,7 +1050,7 @@ if (!isEmpty(main_node)) {
 			action: 'reject'
 		});
 
-	config.route.final = gfwlist_tun ? 'direct-out' : 'main-out';
+	config.route.final = 'main-out';
 
 	if (length(direct_domain_list))
 		push(config.route.rule_set, {
@@ -870,22 +1074,7 @@ if (!isEmpty(main_node)) {
 			]
 		});
 
-	if (gfwlist_tun)
-		push(config.route.rules, {
-			rule_set: 'gfw-list',
-			action: 'route',
-			outbound: 'main-out'
-		});
-
-	if (gfwlist_tun)
-		push(config.route.rule_set, {
-			type: 'remote',
-			tag: 'gfw-list',
-			format: 'binary',
-			url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs'
-		});
-
-	if (routing_mode === 'bypass_mainland_china' || (routing_mode === 'proxy_mainland_china' && match(proxy_mode, /tun/))) {
+	if (routing_mode === 'bypass_mainland_china') {
 		push(config.route.rule_set, {
 			type: 'remote',
 			tag: 'geoip-cn',

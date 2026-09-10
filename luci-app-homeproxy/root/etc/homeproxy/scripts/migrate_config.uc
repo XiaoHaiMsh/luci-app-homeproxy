@@ -19,7 +19,8 @@ const uciinfra = 'infra',
       ucidnsrule = 'dns_rule',
       ucirouting = 'routing',
       uciroutingrule = 'routing_rule',
-      uciserver = 'server';
+      uciserver = 'server',
+      uciapprule = 'app_rule';
 
 if (uci.get(uciconfig, uciinfra, 'china_dns_port'))
 	uci.delete(uciconfig, uciinfra, 'china_dns_port');
@@ -204,9 +205,18 @@ uci.foreach(uciconfig, uciroutingrule, (cfg) => {
 	}
 });
 
+uci.foreach(uciconfig, uciapprule, (cfg) => {
+	if (!isEmpty(cfg.custom_name))
+		uci.delete(uciconfig, cfg['.name'], 'custom_name');
+});
+
 const current_proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode');
-if (current_proxy_mode === 'redirect_tun')
+if (current_proxy_mode === 'redirect_tun' || current_proxy_mode === 'redirect_tproxy')
 	uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
+
+const current_routing_mode = uci.get(uciconfig, ucimain, 'routing_mode');
+if (current_routing_mode === 'gfwlist' || current_routing_mode === 'proxy_mainland_china')
+	uci.set(uciconfig, ucimain, 'routing_mode', 'bypass_mainland_china');
 
 const auto_firewall = uci.get(uciconfig, uciserver, 'auto_firewall');
 if (!isEmpty(auto_firewall))

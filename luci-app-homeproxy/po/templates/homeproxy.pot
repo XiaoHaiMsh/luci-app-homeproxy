@@ -288,18 +288,6 @@ msgstr ""
 msgid "China DNS server"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:244
-msgid "China IPv4 list version"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:248
-msgid "China IPv6 list version"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:252
-msgid "China list version"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1064
 #: htdocs/luci-static/resources/view/homeproxy/server.js:586
 msgid "Cipher suites"
@@ -702,14 +690,6 @@ msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:842
 msgid "GET"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:256
-msgid "GFW list version"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/client.js:252
-msgid "GFWList"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:1446
@@ -1234,10 +1214,6 @@ msgstr ""
 msgid "Only process traffic from specific interfaces. Leave empty for all."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/client.js:254
-msgid "Only proxy mainland China"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:843
 msgid "PUT"
 msgstr ""
@@ -1475,10 +1451,6 @@ msgstr ""
 msgid "Redirect TCP"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/client.js:287
-msgid "Redirect TCP + TProxy UDP"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/homeproxy/client.js:289
 msgid "Redirect TCP + Tun UDP"
 msgstr ""
@@ -1489,6 +1461,10 @@ msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/server.js:659
 msgid "Region ID"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:687
+msgid "Reject"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1593
@@ -2415,4 +2391,136 @@ msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1556
 msgid "Fetching \"%s\" ..."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:559
+msgid "Proxy Rules"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:583
+msgid "Service name"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:584
+msgid "e.g. My Service"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:591
+msgid "Service"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:592
+msgid "YouTube"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:593
+msgid "TikTok"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:594
+msgid "Telegram"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:595
+msgid "Twitter/X"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:596
+msgid "Google"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:597
+msgid "Cloudflare"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:598
+msgid "GitHub"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:599
+msgid "AI Services (Non-Mainland China)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:608
+msgid "Duplicate service — only the first rule will take effect"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:613
+msgid "Custom rule type"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:614
+msgid "Domain rule-set"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:615
+msgid "IP rule-set"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:616
+msgid "Mixed rule-set (domain + IP)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:617
+msgid "Domain list"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:623
+msgid "Domain rule-set URL"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:634
+msgid "IP rule-set URL"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:645
+msgid "Rule-set format"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:646
+msgid "Binary (.srs)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:647
+msgid "JSON (.json)"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:655
+msgid "Custom domains"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:656
+msgid "One domain (or domain keyword) per line. Matches as a substring, same as the Proxy/Direct Domain List tabs."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:673
+msgid "Same as main node"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:674
+msgid "Separate URLTest"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:682
+msgid "URLTest nodes"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:683
+msgid "List of nodes to test."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:690
+msgid "Test interval"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:691
+msgid "The test interval in seconds."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:697
+msgid "Test tolerance"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:698
+msgid "The test tolerance in milliseconds."
 msgstr ""

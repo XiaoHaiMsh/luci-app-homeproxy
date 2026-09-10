@@ -31,64 +31,6 @@ job_write() {
 	mv -f "$f.tmp" "$f"
 }
 
-to_upper() {
-	echo -e "$1" | tr "[a-z]" "[A-Z]"
-}
-
-check_list_update() {
-	local listtype="$1"
-	local listrepo="$2"
-	local listref="$3"
-	local listname="$4"
-	local lock="$RUN_DIR/update_resources-$listtype.lock"
-	local github_token="$(uci -q get homeproxy.config.github_token)"
-
-	exec 200>"$lock"
-	if ! flock -n 200 &> "/dev/null"; then
-		log "[$(to_upper "$listtype")] A task is already running."
-		job_write "$listtype" "locked" "checking" "a task is already running"
-		return 2
-	fi
-
-	set -- -fsSL --connect-timeout 10 --max-time 15
-	[ -z "$github_token" ] || set -- "$@" -H "Authorization: Bearer $github_token"
-	local list_info="$(curl "$@" "https://api.github.com/repos/$listrepo/commits?sha=$listref&path=$listname&per_page=1" 2>/dev/null)"
-	local list_sha="$(echo -e "$list_info" | jsonfilter -qe "@[0].sha")"
-	local list_ver="$(echo -e "$list_info" | jsonfilter -qe "@[0].commit.message" | grep -Eo "[0-9-]+" | tr -d '-')"
-	if [ -z "$list_sha" ] || [ -z "$list_ver" ]; then
-		log "[$(to_upper "$listtype")] Failed to get the latest version, please retry later."
-		job_write "$listtype" "error" "checking" "failed to get the latest version, please retry later"
-		return 1
-	fi
-
-	local local_list_ver="$(cat "$RESOURCES_DIR/$listtype.ver" 2>"/dev/null" || echo "NOT FOUND")"
-	if [ "$local_list_ver" = "$list_ver" ]; then
-		log "[$(to_upper "$listtype")] Current version: $list_ver."
-		log "[$(to_upper "$listtype")] You're already at the latest version."
-		job_write "$listtype" "latest" "done" "" "$list_ver"
-		return 3
-	else
-		log "[$(to_upper "$listtype")] Local version: $local_list_ver, latest version: $list_ver."
-	fi
-
-	job_write "$listtype" "running" "downloading" "" "$list_ver"
-
-	if ! curl -fsSL --connect-timeout 10 --max-time 45 --retry 1 -o "$RUN_DIR/$listname" \
-		"https://fastly.jsdelivr.net/gh/$listrepo@$list_sha/$listname" || [ ! -s "$RUN_DIR/$listname" ]; then
-		rm -f "$RUN_DIR/$listname"
-		log "[$(to_upper "$listtype")] Update failed."
-		job_write "$listtype" "error" "downloading" "update failed" "$list_ver"
-		return 1
-	fi
-
-	mv -f "$RUN_DIR/$listname" "$RESOURCES_DIR/$listtype.${listname##*.}"
-	echo -e "$list_ver" > "$RESOURCES_DIR/$listtype.ver"
-	log "[$(to_upper "$listtype")] Successfully updated."
-	job_write "$listtype" "success" "done" "" "$list_ver"
-
-	return 0
-}
-
 check_dashboard_update() {
 	local repo="SagerNet/sing-box-dashboard"
 	local branch="gh-pages"
@@ -111,9 +53,9 @@ check_dashboard_update() {
 		job_write "dashboard" "error" "checking" "failed to get the latest version, please retry later"
 		return 1
 	fi
-	local dashboard_ver="$(echo -e "$commit_sha" | cut -c1-7)"
+	local dashboard_ver="$commit_sha"
 
-	local local_dashboard_ver="$(cat "$RESOURCES_DIR/dashboard.ver" 2>"/dev/null" || echo "NOT FOUND")"
+	local local_dashboard_ver="$(cat "$DASHBOARD_DIR/dashboard.ver" 2>"/dev/null" || echo "NOT FOUND")"
 	if [ "$local_dashboard_ver" = "$dashboard_ver" ] && [ -s "$DASHBOARD_DIR/index.html" ]; then
 		log "[DASHBOARD] Current version: $dashboard_ver."
 		log "[DASHBOARD] You're already at the latest version."
@@ -220,7 +162,7 @@ check_dashboard_update() {
 	rm -rf "$dashboard_stage"
 
 	rm -rf "$tmp_zip" "$tmp_extract"
-	echo -e "$dashboard_ver" > "$RESOURCES_DIR/dashboard.ver"
+	echo -e "$dashboard_ver" > "$DASHBOARD_DIR/dashboard.ver"
 	log "[DASHBOARD] Successfully updated."
 	job_write "dashboard" "success" "done" "" "$dashboard_ver"
 
@@ -228,24 +170,11 @@ check_dashboard_update() {
 }
 
 case "$1" in
-"china_ip4")
-	check_list_update "$1" "gaoyifan/china-operator-ip" "ip-lists" "china.txt"
-	;;
-"china_ip6")
-	check_list_update "$1" "gaoyifan/china-operator-ip" "ip-lists" "china6.txt"
-	;;
-"gfw_list")
-	check_list_update "$1" "Loyalsoldier/v2ray-rules-dat" "release" "gfw.txt"
-	;;
-"china_list")
-	check_list_update "$1" "Loyalsoldier/v2ray-rules-dat" "release" "direct-list.txt" && \
-		sed -i -e "s/full://g" -e "/:/d" "$RESOURCES_DIR/china_list.txt"
-	;;
 "dashboard")
 	check_dashboard_update
 	;;
 *)
-	echo -e "Usage: $0 <china_ip4 / china_ip6 / gfw_list / china_list / dashboard>"
+	echo -e "Usage: $0 <dashboard>"
 	exit 1
 	;;
 esac

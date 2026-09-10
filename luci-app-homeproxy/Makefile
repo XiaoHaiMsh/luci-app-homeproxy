@@ -12,7 +12,6 @@ LUCI_DEPENDS:= \
 	+firewall4 \
 	+ip-full \
 	+kmod-tun \
-	+kmod-nft-tproxy \
 	+curl \
 	+flock \
 	+unzip \

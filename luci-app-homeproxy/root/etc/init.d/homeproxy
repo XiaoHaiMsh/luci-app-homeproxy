@@ -111,6 +111,11 @@ start_service() {
 	if [ "$main_node" = "core_only" ]; then
 		local core_profile core_conf_path
 
+		if [ -d "$DNSMASQ_DIR" ] || [ -f "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" ]; then
+			rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
+			/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
+		fi
+
 		config_get core_profile "config" "main_core_profile" ""
 		if [ -z "$core_profile" ]; then
 			log "Error: \"Core only\" is selected but no core config file is chosen."
@@ -198,9 +203,8 @@ start_service() {
 		return 0
 	fi
 
-	local routing_mode proxy_mode
+	local routing_mode
 	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
-	config_get proxy_mode "config" "proxy_mode" "tun"
 
 	local outbound_node="$main_node"
 
@@ -236,20 +240,11 @@ start_service() {
 			return 1
 		fi
 
-		case "$routing_mode" in
-		"bypass_mainland_china")
+		if [ "$routing_mode" = "bypass_mainland_china" ]; then
 			mkdir -p "$CACHE_DIR"
 			touch "$CACHE_PATH"
 			chown sing-box:sing-box "$CACHE_PATH"
-			;;
-		"gfwlist"|"proxy_mainland_china")
-			if [ "$proxy_mode" = "tun" ]; then
-				mkdir -p "$CACHE_DIR"
-				touch "$CACHE_PATH"
-				chown sing-box:sing-box "$CACHE_PATH"
-			fi
-			;;
-		esac
+		fi
 
 		local auto_update auto_update_time
 		config_get_bool auto_update "subscription" "auto_update" "0"
@@ -259,8 +254,7 @@ start_service() {
 			sync_cron_tag "${CONF}_autosetup" "0 $auto_update_time * * * $HP_DIR/scripts/update_crond.sh #${CONF}_autosetup"
 		fi
 
-		local ipv6_support dns_port
-		config_get_bool ipv6_support "config" "ipv6_support" "0"
+		local dns_port
 		config_get dns_port "infra" "dns_port" "5333"
 
 		rm -rf "${RUN_DIR}"/dnsmasq-new.* 2>"/dev/null"
@@ -268,66 +262,13 @@ start_service() {
 		dns_new_dir="$(mktemp -d "${RUN_DIR}/dnsmasq-new.XXXXXX" 2>"/dev/null")" || dns_new_dir="$RUN_DIR/dnsmasq-new.$$"
 		mkdir -p "$dns_new_dir"
 
-		case "$routing_mode" in
-		"bypass_mainland_china"|"global")
-			cat <<-EOF >> "$dns_new_dir/redirect-dns.conf"
-				no-poll
-				no-resolv
-				server=127.0.0.1#$dns_port
-			EOF
-			;;
-		"gfwlist")
-			local gfw_nftset_v6
-			[ "$ipv6_support" -eq "0" ] || gfw_nftset_v6=",6#inet#fw4#homeproxy_gfw_list_v6"
-			sed -r -e "s/(.*)/server=\/\1\/127.0.0.1#$dns_port\nnftset=\/\1\\/4#inet#fw4#homeproxy_gfw_list_v4$gfw_nftset_v6/g" \
-				"$HP_DIR/resources/gfw_list.txt" > "$dns_new_dir/gfw_list.conf"
-			;;
-		"proxy_mainland_china")
-			sed -r -e "s/(.*)/server=\/\1\/127.0.0.1#$dns_port/g" \
-				"$HP_DIR/resources/china_list.txt" > "$dns_new_dir/china_list.conf"
-			;;
-		esac
-
-		if [ -s "$HP_DIR/resources/direct_list.txt" ]; then
-			local wan_direct_nftset_v6
-			[ "$ipv6_support" -eq "0" ] || wan_direct_nftset_v6=",6#inet#fw4#homeproxy_wan_direct_addr_v6"
-			sed -r -e '/^\s*$/d' -e "s/(.*)/nftset=\/\1\\/4#inet#fw4#homeproxy_wan_direct_addr_v4$wan_direct_nftset_v6/g" \
-				"$HP_DIR/resources/direct_list.txt" > "$dns_new_dir/direct_list.conf"
-		fi
-
-		if [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
-			local wan_nftset_v6
-			[ "$ipv6_support" -eq "0" ] || wan_nftset_v6=",6#inet#fw4#homeproxy_wan_proxy_addr_v6"
-			sed -r -e '/^\s*$/d' -e "s/(.*)/server=\/\1\/127.0.0.1#$dns_port\nnftset=\/\1\\/4#inet#fw4#homeproxy_wan_proxy_addr_v4$wan_nftset_v6/g" \
-				"$HP_DIR/resources/proxy_list.txt" > "$dns_new_dir/proxy_list.conf"
-		fi
+		cat <<-EOF >> "$dns_new_dir/redirect-dns.conf"
+			no-poll
+			no-resolv
+			server=127.0.0.1#$dns_port
+		EOF
 
 		sync_dnsmasq_dir "$dns_new_dir" "conf-dir=$DNSMASQ_DIR"
-
-		local table_mark
-		config_get table_mark "infra" "table_mark" "100"
-		case "$proxy_mode" in
-		"redirect_tproxy")
-			local outbound_udp_node
-			config_get outbound_udp_node "config" "main_udp_node" "nil"
-			if [ "$outbound_udp_node" != "nil" ]; then
-				local tproxy_mark
-				config_get tproxy_mark "infra" "tproxy_mark" "101"
-
-				ip rule del fwmark "$tproxy_mark" table "$table_mark" 2>/dev/null
-				ip rule add fwmark "$tproxy_mark" table "$table_mark"
-				ip route replace local 0.0.0.0/0 dev lo table "$table_mark"
-
-				if [ "$ipv6_support" -eq "1" ]; then
-					ip -6 rule del fwmark "$tproxy_mark" table "$table_mark" 2>/dev/null
-					ip -6 rule add fwmark "$tproxy_mark" table "$table_mark"
-					ip -6 route replace local ::/0 dev lo table "$table_mark"
-				fi
-			fi
-			;;
-		"redirect_tun"|"tun")
-			;;
-		esac
 
 		procd_open_instance "sing-box-c"
 
@@ -406,20 +347,11 @@ start_service() {
 	procd_set_param respawn
 	procd_close_instance
 
-	case "$routing_mode" in
-	"bypass_mainland_china")
+	if [ "$routing_mode" = "bypass_mainland_china" ]; then
 		mkdir -p "$CACHE_DIR"
 		[ -e "$CACHE_PATH" ] || touch "$CACHE_PATH"
 		chown sing-box:sing-box "$CACHE_PATH" 2>/dev/null
-		;;
-	"gfwlist"|"proxy_mainland_china")
-		if [ "$proxy_mode" = "tun" ]; then
-			mkdir -p "$CACHE_DIR"
-			[ -e "$CACHE_PATH" ] || touch "$CACHE_PATH"
-			chown sing-box:sing-box "$CACHE_PATH" 2>/dev/null
-		fi
-		;;
-	esac
+	fi
 
 	[ "$outbound_node" = "nil" ] || echo > "$RUN_DIR/sing-box-c.log"
 	if [ "$server_enabled" = "1" ]; then
@@ -440,43 +372,6 @@ stop_service() {
 	sync_cron_tag "${CONF}_autosetup" ""
 	sync_cron_tag "${CONF}_core_sub_autosetup" ""
 
-	config_load "$CONF"
-	local table_mark tproxy_mark tun_mark tun_name
-	config_get table_mark "infra" "table_mark" "100"
-	config_get tproxy_mark "infra" "tproxy_mark" "101"
-	config_get tun_mark "infra" "tun_mark" "102"
-	config_get tun_name "infra" "tun_name" "singtun0"
-
-	ip rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"
-	ip route del local 0.0.0.0/0 dev lo table "$table_mark" 2>"/dev/null"
-	ip -6 rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"
-	ip -6 route del local ::/0 dev lo table "$table_mark" 2>"/dev/null"
-
-	ip route del default dev "$tun_name" table "$table_mark" 2>"/dev/null"
-	ip rule del fwmark "$tun_mark" table "$table_mark" 2>"/dev/null"
-
-	ip -6 route del default dev "$tun_name" table "$table_mark" 2>"/dev/null"
-	ip -6 rule del fwmark "$tun_mark" table "$table_mark" 2>"/dev/null"
-
-	for i in "homeproxy_dstnat_redir" "homeproxy_output_redir" \
-		 "homeproxy_redirect" "homeproxy_redirect_proxy" \
-		 "homeproxy_redirect_proxy_port" "homeproxy_redirect_lanac" \
-		 "homeproxy_mangle_prerouting" "homeproxy_mangle_output" \
-		 "homeproxy_mangle_tproxy" "homeproxy_mangle_tproxy_port" \
-		 "homeproxy_mangle_tproxy_lanac" "homeproxy_mangle_mark" \
-		 "homeproxy_mangle_tun" "homeproxy_mangle_tun_mark"; do
-		nft flush chain inet fw4 "$i"
-		nft delete chain inet fw4 "$i"
-	done 2>"/dev/null"
-	for i in "homeproxy_local_addr_v4" "homeproxy_local_addr_v6" \
-		 "homeproxy_gfw_list_v4" "homeproxy_gfw_list_v6" \
-		 "homeproxy_mainland_addr_v4" "homeproxy_mainland_addr_v6" \
-		 "homeproxy_wan_proxy_addr_v4" "homeproxy_wan_proxy_addr_v6" \
-		 "homeproxy_wan_direct_addr_v4" "homeproxy_wan_direct_addr_v6" \
-		 "homeproxy_routing_port"; do
-		nft flush set inet fw4 "$i"
-		nft delete set inet fw4 "$i"
-	done 2>"/dev/null"
 	echo 2>"/dev/null" > "$RUN_DIR/fw4_forward.nft"
 	echo 2>"/dev/null" > "$RUN_DIR/fw4_input.nft"
 	echo 2>"/dev/null" > "$RUN_DIR/fw4_post.nft"
@@ -486,11 +381,7 @@ stop_service() {
 		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
 		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
 	else
-		# nftset集合(gfw_list/mainland_addr/wan_proxy_addr/wan_direct_addr等)
-		# 在上面已被无条件删除重建为空集,即使dnsmasq自身conf.d内容未变、
-		# 不会走sync_dnsmasq_dir的重启分支,也必须清空dnsmasq缓存,
-		# 否则后续命中缓存的查询不会重新触发nftset写入,导致对应域名
-		# 在本轮reload期间持续路由失败,直到缓存自然过期或手动重启dnsmasq。
+
 		killall -SIGHUP dnsmasq >"/dev/null" 2>&1
 	fi
 

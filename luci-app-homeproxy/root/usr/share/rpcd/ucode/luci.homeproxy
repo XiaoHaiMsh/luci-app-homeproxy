@@ -362,7 +362,6 @@ const methods = {
 
 			features.hp_has_ip_full = access('/usr/libexec/ip-full');
 			features.hp_has_tcp_brutal = hasKernelModule('brutal.ko');
-			features.hp_has_tproxy = hasKernelModule('nft_tproxy.ko') || access('/etc/modules.d/nft-tproxy');
 			features.hp_has_tun = hasKernelModule('tun.ko') || access('/etc/modules.d/30-tun');
 
 			return features;
@@ -581,7 +580,7 @@ const methods = {
 		args: { type: 'type' },
 		call: function(req) {
 			const type = req.args?.type;
-			if (index(['china_ip4', 'china_ip6', 'china_list', 'gfw_list', 'dashboard'], type) === -1)
+			if (index(['dashboard'], type) === -1)
 				return { result: false, error: 'illegal type' };
 
 			job_write(`res_${type}`, 'running', 'checking');
@@ -595,7 +594,7 @@ const methods = {
 		args: { type: 'type' },
 		call: function(req) {
 			const type = req.args?.type;
-			if (index(['china_ip4', 'china_ip6', 'china_list', 'gfw_list', 'dashboard'], type) === -1)
+			if (index(['dashboard'], type) === -1)
 				return { state: 'idle' };
 
 			return job_read(`res_${type}`);

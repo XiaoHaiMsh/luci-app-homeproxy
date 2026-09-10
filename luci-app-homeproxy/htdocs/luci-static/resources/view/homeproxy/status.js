@@ -79,14 +79,7 @@ function getConnStat(o, site) {
 	]);
 }
 
-function getResVersion(o, type) {
-	const callResVersion = rpc.declare({
-		object: 'luci.homeproxy',
-		method: 'resources_get_version',
-		params: ['type'],
-		expect: { '': {} }
-	});
-
+function getDashboardUpdate(o) {
 	const callResUpdateStart = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'resources_update_start',
@@ -101,55 +94,43 @@ function getResVersion(o, type) {
 		expect: { '': {} }
 	});
 
-	return L.resolveDefault(callResVersion(type), {}).then((res) => {
-		const versionEl = E('strong', { 'style': (res.error ? 'color:red' : 'color:green') },
-			[ res.error ? 'not found' : res.version ]
-		);
-		const msgEl = E('span', { 'style': 'margin-left:8px; font-size:0.9em; color:gray' }, '');
+	const msgEl = E('span', { 'style': 'margin-left:8px; font-size:0.9em; color:gray' }, '');
 
-		let spanTemp = E('div', { 'style': 'cbi-value-field' }, [
-			E('button', {
-				'class': 'btn cbi-button cbi-button-action',
-				'click': ui.createHandlerFn(this, async function() {
-					const start = await L.resolveDefault(callResUpdateStart(type), {});
+	o.default = E('div', { 'style': 'cbi-value-field' }, [
+		E('button', {
+			'class': 'btn cbi-button cbi-button-action',
+			'click': ui.createHandlerFn(this, async function() {
+				const start = await L.resolveDefault(callResUpdateStart('dashboard'), {});
 
-					const updRes = start.result
-						? await pollJobStatus(() => callResUpdateStatus(type), () => {}, 1500)
-						: {};
+				const updRes = start.result
+					? await pollJobStatus(() => callResUpdateStatus('dashboard'), () => {}, 1500)
+					: {};
 
-					let msg, color;
-					switch (updRes.state) {
-					case 'success':
-						msg = _('Successfully updated.'); color = 'green';
-						break;
-					case 'locked':
-						msg = _('Already in updating.'); color = 'darkorange';
-						break;
-					case 'latest':
-						msg = _('Already at the latest version.'); color = 'gray';
-						break;
-					case 'error':
-						msg = _('Update failed.'); color = 'red';
-						break;
-					default:
-						msg = _('Unknown error.'); color = 'red';
-						break;
-					}
-					msgEl.textContent = msg;
-					msgEl.style.color = color;
-
-					const verRes = await L.resolveDefault(callResVersion(type), {});
-					versionEl.textContent = verRes.error ? 'not found' : verRes.version;
-					versionEl.style.color = verRes.error ? 'red' : 'green';
-				})
-			}, [ _('Check update') ]),
-			' ',
-			versionEl,
-			msgEl
-		]);
-
-		o.default = spanTemp;
-	});
+				let msg, color;
+				switch (updRes.state) {
+				case 'success':
+					msg = _('Successfully updated.'); color = 'green';
+					break;
+				case 'locked':
+					msg = _('Already in updating.'); color = 'darkorange';
+					break;
+				case 'latest':
+					msg = _('Already at the latest version.'); color = 'gray';
+					break;
+				case 'error':
+					msg = _('Update failed.'); color = 'red';
+					break;
+				default:
+					msg = _('Unknown error.'); color = 'red';
+					break;
+				}
+				msgEl.textContent = msg;
+				msgEl.style.color = color;
+			})
+		}, [ _('Check update') ]),
+		' ',
+		msgEl
+	]);
 }
 
 function callCoreInfo() {
@@ -266,7 +247,7 @@ function buildCoreContext() {
 		const remoteEl = E('strong', { 'style': 'color:gray; margin-left:8px; font-weight:normal; font-size:0.9em' }, '');
 
 		const checkBtn = registerLockable(E('button', {
-			'class': 'btn cbi-button',
+			'class': 'btn cbi-button cbi-button-action',
 			'click': ui.createHandlerFn(this, async function() {
 				if (busy) return;
 				setBusy(true);
@@ -288,7 +269,7 @@ function buildCoreContext() {
 	}
 
 	restoreBtn = registerLockable(E('button', {
-		'class': 'btn cbi-button cbi-button-negative',
+		'class': 'btn cbi-button cbi-button-action',
 		'disabled': true,
 		'click': ui.createHandlerFn(this, async function() {
 			if (busy) return;
@@ -442,29 +423,6 @@ return view.extend({
 		o = s.option(form.DummyValue, '_check_google', _('Google'));
 		o.cfgvalue = L.bind(getConnStat, this, o, 'google');
 
-		s = m.section(form.NamedSection, 'config', 'homeproxy', _('Resources management'));
-		s.anonymous = true;
-
-		o = s.option(form.DummyValue, '_china_ip4_version', _('China IPv4 list version'));
-		o.cfgvalue = L.bind(getResVersion, this, o, 'china_ip4');
-		o.rawhtml = true;
-
-		o = s.option(form.DummyValue, '_china_ip6_version', _('China IPv6 list version'));
-		o.cfgvalue = L.bind(getResVersion, this, o, 'china_ip6');
-		o.rawhtml = true;
-
-		o = s.option(form.DummyValue, '_china_list_version', _('China list version'));
-		o.cfgvalue = L.bind(getResVersion, this, o, 'china_list');
-		o.rawhtml = true;
-
-		o = s.option(form.DummyValue, '_gfw_list_version', _('GFW list version'));
-		o.cfgvalue = L.bind(getResVersion, this, o, 'gfw_list');
-		o.rawhtml = true;
-
-		o = s.option(form.DummyValue, '_dashboard_version', _('Dashboard version'));
-		o.cfgvalue = L.bind(getResVersion, this, o, 'dashboard');
-		o.rawhtml = true;
-
 		s = m.section(form.NamedSection, 'config', 'homeproxy', _('Core management'));
 		s.anonymous = true;
 
@@ -496,6 +454,10 @@ return view.extend({
 
 		o = s.option(form.DummyValue, '_core_restore', _('Restore core'));
 		bindCoreRow(o, 'restoreRow');
+
+		o = s.option(form.DummyValue, '_dashboard', _('Dashboard'));
+		o.cfgvalue = L.bind(getDashboardUpdate, this, o);
+		o.rawhtml = true;
 
 		o = s.option(form.Value, 'github_token', _('GitHub token'));
 		o.password = true;
