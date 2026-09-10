@@ -537,7 +537,7 @@ return view.extend({
 			o.value('gvisor', _('gVisor'));
 		}
 		o.value('system', _('System'));
-		o.default = 'system';
+		o.default = 'mixed';
 		o.depends({'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
 		o.rmempty = false;
 		o.onchange = function(ev, section_id, value) {
@@ -551,7 +551,7 @@ return view.extend({
 		}
 
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
-		o.default = o.disabled;
+		o.default = o.enabled;
 		o.rmempty = false;
 		o.depends({'main_node': /^((?!core_only).)+$/});
 
