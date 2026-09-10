@@ -2439,7 +2439,7 @@ msgstr "正在安装..."
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js
 msgid "Proxy Rules"
-msgstr "代理规则"
+msgstr "分流策略"
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js
 msgid "Service"
