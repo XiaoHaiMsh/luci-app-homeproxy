@@ -1114,7 +1114,7 @@ if (!isEmpty(main_node)) {
 			type: 'remote',
 			tag: 'geoip-cn',
 			format: 'binary',
-			url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs'
+			url: 'https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs'
 		});
 	}
 
@@ -1123,13 +1123,13 @@ if (!isEmpty(main_node)) {
 			type: 'remote',
 			tag: 'geosite-cn',
 			format: 'binary',
-			url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs'
+			url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs'
 		});
 		push(config.route.rule_set, {
 			type: 'remote',
 			tag: 'geosite-noncn',
 			format: 'binary',
-			url: 'https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/geolocation-!cn.srs'
+			url: 'https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs'
 		});
 	}
 }
