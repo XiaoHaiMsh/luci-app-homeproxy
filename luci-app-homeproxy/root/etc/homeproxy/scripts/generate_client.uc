@@ -880,9 +880,10 @@ if (!isEmpty(main_node)) {
 							type: 'urltest',
 							tag: effective_outbound,
 							outbounds: map(rule_urltest_nodes, (k) => node_out_tag(k)),
-							interval: strToTime(cfg.urltest_interval || '180'),
-							tolerance: strToInt(cfg.urltest_tolerance || '150'),
-							idle_timeout: (strToInt(cfg.urltest_interval || '180') > 1800) ? `${(cfg.urltest_interval || '180') * 2}s` : null
+							interval: strToTime(cfg.urltest_interval || '120'),
+							tolerance: strToInt(cfg.urltest_tolerance || '40'),
+							idle_timeout: (strToInt(cfg.urltest_interval || '120') > 1800) ? `${(cfg.urltest_interval || '120') * 2}s` : null,
+							interrupt_exist_connections: (cfg.urltest_interrupt_exist_connections === '1') ? true : null
 						});
 						for (let k in rule_urltest_nodes)
 							add_node_outbound(k, node_out_tag(k));

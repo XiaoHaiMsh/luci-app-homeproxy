@@ -685,14 +685,20 @@ return view.extend({
 		so = ss.option(form.Value, 'urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		so.datatype = 'uinteger';
-		so.placeholder = '180';
+		so.placeholder = '120';
 		so.depends('node', 'urltest');
 		so.modalonly = true;
 
 		so = ss.option(form.Value, 'urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		so.datatype = 'uinteger';
-		so.placeholder = '150';
+		so.placeholder = '40';
+		so.depends('node', 'urltest');
+		so.modalonly = true;
+
+		so = ss.option(form.Flag, 'urltest_interrupt_exist_connections', _('Interrupt existing connections'));
+		so.default = so.enabled;
+		so.rmempty = false;
 		so.depends('node', 'urltest');
 		so.modalonly = true;
 
