@@ -701,6 +701,10 @@ msgstr "自定义规则类型"
 msgid "Custom"
 msgstr "自定义规则"
 
+#: htdocs/luci-static/resources/view/homeproxy/client.js:321
+msgid "DNS Settings"
+msgstr "DNS设置"
+
 #: htdocs/luci-static/resources/view/homeproxy/client.js:545
 msgid "DNS fallback strategy"
 msgstr "DNS 备用策略"

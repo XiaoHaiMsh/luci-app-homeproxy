@@ -318,6 +318,7 @@ return view.extend({
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
 
 		s.tab('routing', _('Routing Settings'));
+		s.tab('dns', _('DNS Settings'));
 		s.tab('dashboard', _('Dashboard'));
 
 		o = s.taboption('routing', form.ListValue, 'main_node', _('Main node'));
@@ -420,21 +421,24 @@ return view.extend({
 		o.rmempty = false;
 		o.depends({'main_udp_node': 'urltest', 'main_node': /^((?!core_only).)+$/});
 
-		o = s.taboption('routing', form.Value, 'dns_server', _('DNS server'),
+		o = s.taboption('dns', form.SectionValue, '_dns', form.NamedSection, 'config', 'homeproxy');
+		o.depends({'main_node': /^((?!core_only).)+$/});
+		ss = o.subsection;
+
+		so = ss.option(form.Value, 'dns_server', _('DNS server'),
 			_('Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified.'));
-		o.value('wan', _('WAN DNS (read from interface)'));
-		o.value('1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
-		o.value('9.9.9.9', _('Quad9 Public DNS (9.9.9.9)'));
-		o.value('8.8.8.8', _('Google Public DNS (8.8.8.8)'));
-		o.value('', '---');
-		o.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
-		o.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
-		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
-		o.default = '8.8.8.8';
-		o.rmempty = false;
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
-		o.validate = function(section_id, value) {
+		so.value('wan', _('WAN DNS (read from interface)'));
+		so.value('1.1.1.1', _('CloudFlare Public DNS (1.1.1.1)'));
+		so.value('9.9.9.9', _('Quad9 Public DNS (9.9.9.9)'));
+		so.value('8.8.8.8', _('Google Public DNS (8.8.8.8)'));
+		so.value('', '---');
+		so.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
+		so.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
+		so.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
+		so.default = '8.8.8.8';
+		so.rmempty = false;
+		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
+		so.validate = function(section_id, value) {
 			if (section_id && !['wan'].includes(value)) {
 				if (!value)
 					return _('Expecting: %s').format(_('non-empty value'));
@@ -459,16 +463,16 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.Value, 'china_dns_server', _('China DNS server'),
+		so = ss.option(form.Value, 'china_dns_server', _('China DNS server'),
 			_('The dns server for resolving China domains. Support UDP, TCP, DoH, DoQ, DoT.'));
-		o.value('wan', _('WAN DNS (read from interface)'));
-		o.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
-		o.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
-		o.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.default = '223.5.5.5';
-		o.rmempty = false;
-		o.validate = function(section_id, value) {
+		so.value('wan', _('WAN DNS (read from interface)'));
+		so.value('223.5.5.5', _('Aliyun Public DNS (223.5.5.5)'));
+		so.value('180.184.1.1', _('ByteDance Public DNS (180.184.1.1)'));
+		so.value('119.29.29.29', _('Tencent Public DNS (119.29.29.29)'));
+		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		so.default = '223.5.5.5';
+		so.rmempty = false;
+		so.validate = function(section_id, value) {
 			if (section_id && !['wan'].includes(value)) {
 				if (!value)
 					return _('Expecting: %s').format(_('non-empty value'));
@@ -492,11 +496,10 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
+		so = ss.option(form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
 			_('Additional DNS servers used together with the primary DNS server above. When set, queries are distributed across all of them according to the strategy below. Support UDP, TCP, DoH, DoQ, DoT.'));
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
-		o.validate = function(section_id, value) {
+		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
+		so.validate = function(section_id, value) {
 			if (section_id && value) {
 				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
 				try {
@@ -518,10 +521,10 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
+		so = ss.option(form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
 			_('Additional DNS servers used together with the China DNS server above.'));
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.validate = function(section_id, value) {
+		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		so.validate = function(section_id, value) {
 			if (section_id && value) {
 				try {
 					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
@@ -542,21 +545,19 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'dns_fallback_strategy', _('DNS fallback strategy'),
+		so = ss.option(form.ListValue, 'dns_fallback_strategy', _('DNS fallback strategy'),
 			_('How to query the primary and fallback DNS servers when fallback servers are configured above.'));
-		o.value('sequential', _('Sequential (try in order)'));
-		o.value('parallel', _('Parallel (query all at once)'));
-		o.default = 'sequential';
-		o.rmempty = false;
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+		so.value('sequential', _('Sequential (try in order)'));
+		so.value('parallel', _('Parallel (query all at once)'));
+		so.default = 'sequential';
+		so.rmempty = false;
+		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 
-		o = s.taboption('routing', form.Value, 'dns_fallback_timeout', _('DNS fallback timeout'),
+		so = ss.option(form.Value, 'dns_fallback_timeout', _('DNS fallback timeout'),
 			_('Overall time budget for the whole fallback exchange, in seconds. Leave empty for default (10s).'));
-		o.datatype = 'uinteger';
-		o.placeholder = '10';
-		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
-		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+		so.datatype = 'uinteger';
+		so.placeholder = '10';
+		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));

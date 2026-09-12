@@ -657,6 +657,10 @@ msgstr ""
 msgid "Custom rule type"
 msgstr ""
 
+#: htdocs/luci-static/resources/view/homeproxy/client.js:321
+msgid "DNS Settings"
+msgstr ""
+
 #: htdocs/luci-static/resources/view/homeproxy/client.js:545
 msgid "DNS fallback strategy"
 msgstr ""
