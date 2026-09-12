@@ -492,6 +492,72 @@ return view.extend({
 			return true;
 		}
 
+		o = s.taboption('routing', form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
+			_('Additional DNS servers used together with the primary DNS server above. When set, queries are distributed across all of them according to the strategy below. Support UDP, TCP, DoH, DoQ, DoT.'));
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+		o.validate = function(section_id, value) {
+			if (section_id && value) {
+				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
+				try {
+					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
+					if (stubValidator.apply('hostname', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip4addr', url.hostname))
+						return true;
+					else if ((ipv6_support === '1') && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+						return true;
+					else
+						return _('Expecting: %s').format(_('valid DNS server address'));
+				} catch(e) {}
+
+				if (!stubValidator.apply((ipv6_support === '1') ? 'ipaddr' : 'ip4addr', value))
+					return _('Expecting: %s').format(_('valid DNS server address'));
+			}
+
+			return true;
+		}
+
+		o = s.taboption('routing', form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
+			_('Additional DNS servers used together with the China DNS server above.'));
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.validate = function(section_id, value) {
+			if (section_id && value) {
+				try {
+					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
+					if (stubValidator.apply('hostname', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip4addr', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+						return true;
+					else
+						return _('Expecting: %s').format(_('valid DNS server address'));
+				} catch(e) {}
+
+				if (!stubValidator.apply('ipaddr', value))
+					return _('Expecting: %s').format(_('valid DNS server address'));
+			}
+
+			return true;
+		}
+
+		o = s.taboption('routing', form.ListValue, 'dns_fallback_strategy', _('DNS fallback strategy'),
+			_('How to query the primary and fallback DNS servers when fallback servers are configured above.'));
+		o.value('sequential', _('Sequential (try in order)'));
+		o.value('parallel', _('Parallel (query all at once)'));
+		o.default = 'sequential';
+		o.rmempty = false;
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+
+		o = s.taboption('routing', form.Value, 'dns_fallback_timeout', _('DNS fallback timeout'),
+			_('Overall time budget for the whole fallback exchange, in seconds. Leave empty for default (10s).'));
+		o.datatype = 'uinteger';
+		o.placeholder = '10';
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
 		o.value('global', _('Global'));
@@ -731,7 +797,6 @@ return view.extend({
 		s.tab('control', _('Access Control'));
 
 		o = s.taboption('control', form.SectionValue, '_control', form.NamedSection, 'control', 'homeproxy');
-		o.depends({'main_node': /^((?!core_only).)+$/});
 		ss = o.subsection;
 
 		ss.tab('interface', _('Interface Control'));
@@ -740,13 +805,11 @@ return view.extend({
 			_('Only process traffic from specific interfaces. Leave empty for all.'));
 		so.multiple = true;
 		so.noaliases = true;
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = ss.taboption('interface', widgets.DeviceSelect, 'bind_interface', _('Bind interface'),
 			_('Bind outbound traffic to specific interface. Leave empty to auto detect.'));
 		so.multiple = false;
 		so.noaliases = true;
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		ss.tab('lan_ip_policy', _('LAN IP Policy'));
 
@@ -756,61 +819,61 @@ return view.extend({
 		so.value('except_listed', _('Proxy all except listed'));
 		so.default = 'disabled';
 		so.rmempty = false;
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Direct IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv6_ips', _('Direct IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Direct MAC-s'), null, hosts);
-		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC-s'), null, hosts);
-		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv4_ips', _('Gaming mode IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv6_ips', _('Gaming mode IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_gaming_mode_mac_addrs', _('Gaming mode MAC-s'), null, hosts);
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv4_ips', _('Global proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv6_ips', _('Global proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_global_proxy_mac_addrs', _('Global proxy MAC-s'), null, hosts);
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		ss.tab('wan_ip_policy', _('WAN IP Policy'));
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Direct IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.proxy_mode': 'tun'});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Direct IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
+		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.proxy_mode': 'tun'});
 
 		ss.tab('proxy_domain_list', _('Proxy Domain List'));
 
@@ -818,7 +881,6 @@ return view.extend({
 		so.rows = 10;
 		so.monospace = true;
 		so.datatype = 'hostname';
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 		so.load = function() {
 			return L.resolveDefault(callReadDomainList('proxy_list')).then((res) => {
 				return res.content;
@@ -845,7 +907,6 @@ return view.extend({
 		so.rows = 10;
 		so.monospace = true;
 		so.datatype = 'hostname';
-		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 		so.load = function() {
 			return L.resolveDefault(callReadDomainList('direct_list')).then((res) => {
 				return res.content;
