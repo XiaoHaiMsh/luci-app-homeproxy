@@ -557,7 +557,7 @@ return view.extend({
 
 		s.tab('app_rules', _('Proxy Rules'));
 		o = s.taboption('app_rules', form.SectionValue, '_app_rules', form.GridSection, 'app_rule');
-		o.depends({'routing_mode': 'bypass_mainland_china', 'proxy_mode': 'tun'});
+		o.depends({'routing_mode': 'bypass_mainland_china', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
 
 		ss = o.subsection;
 		ss.addremove = true;
