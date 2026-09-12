@@ -371,6 +371,12 @@ return view.extend({
 		o.depends('type', 'vless');
 		o.modalonly = true;
 
+		o = s.option(form.Value, 'vless_decryption', _('Decryption'),
+			_('Post-quantum VLESS decryption (Xray-core vlessenc), the server-side private key counterpart of the client\'s Encryption. Leave empty to disable (<code>none</code>).'));
+		o.password = true;
+		o.depends('type', 'vless');
+		o.modalonly = true;
+
 		o = s.option(form.Value, 'vmess_alterid', _('Alter ID'),
 			_('Legacy protocol support (VMess MD5 Authentication) is provided for compatibility purposes only, use of alterId > 1 is not recommended.'));
 		o.datatype = 'uinteger';
@@ -385,6 +391,7 @@ return view.extend({
 		o.value('httpupgrade', _('HTTPUpgrade'));
 		o.value('quic', _('QUIC'));
 		o.value('ws', _('WebSocket'));
+		o.value('xhttp', _('XHTTP'));
 		o.depends('type', 'trojan');
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
@@ -394,6 +401,8 @@ return view.extend({
 				desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
 			else if (value === 'quic')
 				desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
+			else if (value === 'xhttp')
+				desc.innerHTML = _('Xray-core XHTTP transport. Requires a sing-box core with XHTTP support.');
 			else
 				desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
 
@@ -466,6 +475,49 @@ return view.extend({
 			_('To be compatible with Xray-core, set this to <code>Sec-WebSocket-Protocol</code>.'));
 		o.value('Sec-WebSocket-Protocol');
 		o.depends('transport', 'ws');
+		o.modalonly = true;
+
+		o = s.option(form.ListValue, 'xhttp_mode', _('XHTTP mode'));
+		o.value('', _('auto'));
+		o.value('packet-up');
+		o.value('stream-up');
+		o.value('stream-one');
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_host', _('Host'));
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_path', _('Path'));
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_padding_bytes', _('Padding bytes'),
+			_('Range of random padding size, e.g. <code>100-1000</code>.'));
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Flag, 'xhttp_no_sse_header', _('No SSE header'),
+			_('Disable the server-sent-events framing header (server only).'));
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_sc_max_each_post_bytes', _('Max bytes per POST'),
+			_('packet-up mode only.'));
+		o.datatype = 'uinteger';
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_sc_max_buffered_posts', _('Max buffered POSTs'),
+			_('packet-up mode only, server side.'));
+		o.datatype = 'uinteger';
+		o.depends('transport', 'xhttp');
+		o.modalonly = true;
+
+		o = s.option(form.Value, 'xhttp_sc_stream_up_server_secs', _('Stream-up server timeout range (s)'),
+			_('stream-up mode only, server side, e.g. <code>20-80</code>.'));
+		o.depends('transport', 'xhttp');
 		o.modalonly = true;
 
 		o = s.option(form.Flag, 'multiplex', _('Multiplex'));

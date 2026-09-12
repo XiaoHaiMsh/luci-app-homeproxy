@@ -492,6 +492,72 @@ return view.extend({
 			return true;
 		}
 
+		o = s.taboption('routing', form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
+			_('Additional DNS servers used together with the primary DNS server above. When set, queries are distributed across all of them according to the strategy below. Support UDP, TCP, DoH, DoQ, DoT.'));
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+		o.validate = function(section_id, value) {
+			if (section_id && value) {
+				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
+				try {
+					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
+					if (stubValidator.apply('hostname', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip4addr', url.hostname))
+						return true;
+					else if ((ipv6_support === '1') && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+						return true;
+					else
+						return _('Expecting: %s').format(_('valid DNS server address'));
+				} catch(e) {}
+
+				if (!stubValidator.apply((ipv6_support === '1') ? 'ipaddr' : 'ip4addr', value))
+					return _('Expecting: %s').format(_('valid DNS server address'));
+			}
+
+			return true;
+		}
+
+		o = s.taboption('routing', form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
+			_('Additional DNS servers used together with the China DNS server above.'));
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.validate = function(section_id, value) {
+			if (section_id && value) {
+				try {
+					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
+					if (stubValidator.apply('hostname', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip4addr', url.hostname))
+						return true;
+					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+						return true;
+					else
+						return _('Expecting: %s').format(_('valid DNS server address'));
+				} catch(e) {}
+
+				if (!stubValidator.apply('ipaddr', value))
+					return _('Expecting: %s').format(_('valid DNS server address'));
+			}
+
+			return true;
+		}
+
+		o = s.taboption('routing', form.ListValue, 'dns_fallback_strategy', _('DNS fallback strategy'),
+			_('How to query the primary and fallback DNS servers when fallback servers are configured above.'));
+		o.value('sequential', _('Sequential (try in order)'));
+		o.value('parallel', _('Parallel (query all at once)'));
+		o.default = 'sequential';
+		o.rmempty = false;
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+
+		o = s.taboption('routing', form.Value, 'dns_fallback_timeout', _('DNS fallback timeout'),
+			_('Overall time budget for the whole fallback exchange, in seconds. Leave empty for default (10s).'));
+		o.datatype = 'uinteger';
+		o.placeholder = '10';
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'global', 'main_node': /^((?!core_only).)+$/});
+
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
 		o.value('global', _('Global'));
@@ -557,7 +623,7 @@ return view.extend({
 
 		s.tab('app_rules', _('Proxy Rules'));
 		o = s.taboption('app_rules', form.SectionValue, '_app_rules', form.GridSection, 'app_rule');
-		o.depends({'routing_mode': 'bypass_mainland_china', 'proxy_mode': 'tun', 'main_node': /^((?!core_only).)+$/});
+		o.depends({'routing_mode': 'bypass_mainland_china', 'main_node': /^((?!core_only).)+$/});
 
 		ss = o.subsection;
 		ss.addremove = true;

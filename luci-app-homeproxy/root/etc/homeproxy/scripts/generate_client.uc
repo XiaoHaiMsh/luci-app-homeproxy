@@ -133,6 +133,11 @@ if (china_dns_enabled) {
 }
 dns_default_strategy = (ipv6_support !== '1') ? 'ipv4_only' : null;
 
+const dns_server_fallback = normalizeList(uci.get(uciconfig, ucimain, 'dns_server_fallback'));
+const china_dns_server_fallback = normalizeList(uci.get(uciconfig, ucimain, 'china_dns_server_fallback'));
+const dns_fallback_strategy = uci.get(uciconfig, ucimain, 'dns_fallback_strategy') || 'sequential';
+const dns_fallback_timeout = uci.get(uciconfig, ucimain, 'dns_fallback_timeout');
+
 direct_domain_list = trim(readfile(HP_DIR + '/resources/direct_list.txt'));
 if (direct_domain_list)
 	direct_domain_list = split(direct_domain_list, /[\r\n]/);
@@ -267,6 +272,17 @@ function generate_endpoint(node) {
 	return endpoint;
 }
 
+/* sing-box-extended FATALs with "x_padding_bytes cannot be disabled" whenever xhttp
+ * padding resolves to empty: an explicit "0"/"0-0" disables it, and an absent field
+ * decodes to "" which counts as disabled too. So the field must always be present
+ * and non-empty on every xhttp transport. Coerce any disabling/empty value to a
+ * sane default range instead of leaving it empty/omitted. Must be declared before
+ * generate_outbound()/generate_endpoint(), since ucode closures capture the
+ * enclosing scope as of their own definition point, not at call time. */
+function xhttp_padding(v) {
+	return (isEmpty(v) || v === '0' || v === '0-0') ? '100-1000' : v;
+}
+
 function generate_outbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
@@ -314,6 +330,7 @@ function generate_outbound(node) {
 		zero_rtt_handshake: strToBool(node.tuic_enable_zero_rtt),
 		heartbeat: strToTime(node.tuic_heartbeat),
 		flow: node.vless_flow,
+		encryption: node.vless_encryption,
 		alter_id: strToInt(node.vmess_alterid),
 		security: node.vmess_encrypt,
 		global_padding: strToBool(node.vmess_global_padding),
@@ -359,8 +376,8 @@ function generate_outbound(node) {
 		} : null,
 		transport: !isEmpty(node.transport) ? {
 			type: node.transport,
-			host: node.http_host || node.httpupgrade_host,
-			path: node.http_path || node.ws_path,
+			host: node.http_host || node.httpupgrade_host || node.xhttp_host,
+			path: node.http_path || node.ws_path || node.xhttp_path,
 			headers: node.ws_host ? {
 				Host: node.ws_host
 			} : null,
@@ -370,7 +387,20 @@ function generate_outbound(node) {
 			service_name: node.grpc_servicename,
 			idle_timeout: strToTime(node.http_idle_timeout),
 			ping_timeout: strToTime(node.http_ping_timeout),
-			permit_without_stream: strToBool(node.grpc_permit_without_stream)
+			permit_without_stream: strToBool(node.grpc_permit_without_stream),
+
+			mode: (node.transport === 'xhttp') ? (node.xhttp_mode || null) : null,
+			x_padding_bytes: (node.transport === 'xhttp') ? xhttp_padding(node.xhttp_padding_bytes) : null,
+			no_grpc_header: (node.transport === 'xhttp') ? strToBool(node.xhttp_no_grpc_header) : null,
+			sc_max_each_post_bytes: (node.transport === 'xhttp') ? strToInt(node.xhttp_sc_max_each_post_bytes) : null,
+			sc_min_posts_interval_ms: (node.transport === 'xhttp') ? strToInt(node.xhttp_sc_min_posts_interval_ms) : null,
+			xmux: (node.transport === 'xhttp') ? {
+				max_concurrency: node.xhttp_xmux_max_concurrency,
+				max_connections: strToInt(node.xhttp_xmux_max_connections),
+				c_max_reuse_times: strToInt(node.xhttp_xmux_c_max_reuse_times),
+				h_max_request_times: node.xhttp_xmux_h_max_request_times,
+				h_max_reusable_secs: node.xhttp_xmux_h_max_reusable_secs
+			} : null
 		} : null,
 		udp_over_tcp: (node.udp_over_tcp === '1') ? {
 			enabled: true,
@@ -444,16 +474,54 @@ config.dns = {
 	client_subnet: null
 };
 
-if (!isEmpty(main_node)) {
-	push(config.dns.servers, {
-		tag: 'main-dns',
+function push_dns_server_with_fallback(tag, server_addr, default_protocol, fallback_list, detour, resolver_strategy) {
+	const base = {
 		domain_resolver: {
 			server: 'default-dns',
-			strategy: (ipv6_support !== '1') ? 'ipv4_only' : null
+			strategy: resolver_strategy
 		},
-		detour: 'main-out',
-		...parse_dnsserver(dns_server, 'tcp')
+		detour: detour
+	};
+
+	if (!length(fallback_list)) {
+		push(config.dns.servers, {
+			tag,
+			...base,
+			...parse_dnsserver(server_addr, default_protocol)
+		});
+		return;
+	}
+
+	const member_tags = [`${tag}-primary`];
+	push(config.dns.servers, {
+		tag: member_tags[0],
+		...base,
+		...parse_dnsserver(server_addr, default_protocol)
 	});
+
+	let idx = 0;
+	for (let addr in fallback_list) {
+		let member_tag = `${tag}-fallback-${idx++}`;
+		push(config.dns.servers, {
+			tag: member_tag,
+			...base,
+			...parse_dnsserver(addr, default_protocol)
+		});
+		push(member_tags, member_tag);
+	}
+
+	push(config.dns.servers, {
+		tag,
+		type: 'fallback',
+		servers: member_tags,
+		strategy: dns_fallback_strategy,
+		timeout: strToTime(dns_fallback_timeout)
+	});
+}
+
+if (!isEmpty(main_node)) {
+	push_dns_server_with_fallback('main-dns', dns_server, 'tcp', dns_server_fallback, 'main-out',
+		(ipv6_support !== '1') ? 'ipv4_only' : null);
 	config.dns.final = 'main-dns';
 
 	if (length(direct_domain_list))
@@ -471,15 +539,7 @@ if (!isEmpty(main_node)) {
 		});
 
 	if (china_dns_enabled) {
-		push(config.dns.servers, {
-			tag: 'china-dns',
-			domain_resolver: {
-				server: 'default-dns',
-				strategy: 'prefer_ipv6'
-			},
-			detour: null,
-			...parse_dnsserver(china_dns_server)
-		});
+		push_dns_server_with_fallback('china-dns', china_dns_server, 'udp', china_dns_server_fallback, null, 'prefer_ipv6');
 
 		if (length(proxy_domain_list))
 			push(config.dns.rules, {
@@ -1160,6 +1220,12 @@ if (main_node === 'urltest' || main_udp_node === 'urltest') {
 		external_controller: `127.0.0.1:${dashboard_port + 1}`
 	};
 }
+
+if (!config.experimental)
+	config.experimental = {};
+config.experimental.unified_delay = {
+	enabled: true
+};
 
 if (dashboard_enabled)
 	config.services = [

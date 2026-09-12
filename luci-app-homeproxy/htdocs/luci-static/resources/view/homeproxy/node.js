@@ -298,7 +298,9 @@ function parseShareLink(uri, features) {
 				tls_reality_public_key: params.get('pbk') ? decodeURIComponent(params.get('pbk')) : null,
 				tls_reality_short_id: params.get('sid'),
 				tls_utls: features.with_utls ? params.get('fp') : null,
-				vless_flow: ['tls', 'reality'].includes(params.get('security')) ? params.get('flow') : null
+				vless_flow: ['tls', 'reality'].includes(params.get('security')) ? params.get('flow') : null,
+				vless_encryption: (params.get('encryption') && params.get('encryption') !== 'none') ?
+					decodeURIComponent(params.get('encryption')) : null
 			};
 			switch (params.get('type')) {
 			case 'grpc':
@@ -323,6 +325,13 @@ function parseShareLink(uri, features) {
 					config.websocket_early_data = config.ws_path.split('?ed=')[1];
 					config.ws_path = config.ws_path.split('?ed=')[0];
 				}
+				break;
+			case 'xhttp':
+			case 'splithttp':
+				config.transport = 'xhttp';
+				config.xhttp_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
+				config.xhttp_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.xhttp_mode = params.get('mode') || null;
 				break;
 			}
 
@@ -729,6 +738,11 @@ function renderNodeSettings(section, data, features, main_node) {
 	o.depends('type', 'vless');
 	o.modalonly = true;
 
+	o = s.option(form.Value, 'vless_encryption', _('Encryption'),
+		_('Post-quantum VLESS encryption (Xray-core vlessenc). Leave empty to disable (<code>none</code>).'));
+	o.depends('type', 'vless');
+	o.modalonly = true;
+
 	o = s.option(form.Value, 'vmess_alterid', _('Alter ID'),
 		_('Legacy protocol support (VMess MD5 Authentication) is provided for compatibility purposes only, use of alterId > 1 is not recommended.'));
 	o.datatype = 'uinteger';
@@ -766,6 +780,7 @@ function renderNodeSettings(section, data, features, main_node) {
 	o.value('httpupgrade', _('HTTPUpgrade'));
 	o.value('quic', _('QUIC'));
 	o.value('ws', _('WebSocket'));
+	o.value('xhttp', _('XHTTP'));
 	o.depends('type', 'trojan');
 	o.depends('type', 'vless');
 	o.depends('type', 'vmess');
@@ -775,6 +790,8 @@ function renderNodeSettings(section, data, features, main_node) {
 			desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
 		else if (value === 'quic')
 			desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
+		else if (value === 'xhttp')
+			desc.innerHTML = _('Xray-core XHTTP transport. Requires a sing-box core with XHTTP support.');
 		else
 			desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
 
@@ -863,6 +880,71 @@ function renderNodeSettings(section, data, features, main_node) {
 	o = s.option(form.Value, 'websocket_early_data_header', _('Early data header name'));
 	o.value('Sec-WebSocket-Protocol');
 	o.depends('transport', 'ws');
+	o.modalonly = true;
+
+	o = s.option(form.ListValue, 'xhttp_mode', _('XHTTP mode'));
+	o.value('', _('auto'));
+	o.value('packet-up');
+	o.value('stream-up');
+	o.value('stream-one');
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_host', _('Host'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_path', _('Path'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_padding_bytes', _('Padding bytes'),
+		_('Range of random padding size, e.g. <code>100-1000</code>.'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Flag, 'xhttp_no_grpc_header', _('No gRPC header'),
+		_('Disable the gRPC-style framing header (stream-up/stream-one modes, client only).'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_sc_max_each_post_bytes', _('Max bytes per POST'),
+		_('packet-up mode only.'));
+	o.datatype = 'uinteger';
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_sc_min_posts_interval_ms', _('Min POST interval (ms)'),
+		_('packet-up mode only, client side.'));
+	o.datatype = 'uinteger';
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_xmux_max_concurrency', _('Xmux max concurrency'),
+		_('h2/h3 stream concurrency range, e.g. <code>16-32</code>. Client only.'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_xmux_max_connections', _('Xmux max connections'),
+		_('Client only.'));
+	o.datatype = 'uinteger';
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_xmux_c_max_reuse_times', _('Xmux max connection reuse times'),
+		_('Client only.'));
+	o.datatype = 'uinteger';
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_xmux_h_max_request_times', _('Xmux max requests per connection'),
+		_('Range, e.g. <code>600-900</code>. Client only.'));
+	o.depends('transport', 'xhttp');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'xhttp_xmux_h_max_reusable_secs', _('Xmux max connection lifetime (s)'),
+		_('Range, e.g. <code>1800-3000</code>. Client only.'));
+	o.depends('transport', 'xhttp');
 	o.modalonly = true;
 
 	o = s.option(form.ListValue, 'packet_encoding', _('Packet encoding'));

@@ -196,6 +196,7 @@ function apply_transport_opts(config, proxy) {
 	let grpc_opts = proxy['grpc-opts'] || {};
 	let http_opts = proxy['http-opts'] || proxy['h2-opts'] || {};
 	let httpupgrade_opts = proxy['http-upgrade-opts'] || {};
+	let xhttp_opts = proxy['xhttp-opts'] || proxy['splithttp-opts'] || {};
 
 	switch (network) {
 	case 'ws':
@@ -220,6 +221,13 @@ function apply_transport_opts(config, proxy) {
 		config.transport = 'httpupgrade';
 		config.httpupgrade_host = get_header_host(httpupgrade_opts.headers) || httpupgrade_opts.host;
 		config.http_path = normalize_first(httpupgrade_opts.path);
+		break;
+	case 'xhttp':
+	case 'splithttp':
+		config.transport = 'xhttp';
+		config.xhttp_host = get_header_host(xhttp_opts.headers) || to_string(xhttp_opts.host);
+		config.xhttp_path = normalize_first(xhttp_opts.path);
+		config.xhttp_mode = xhttp_opts.mode ? to_string(xhttp_opts.mode) : null;
 		break;
 	}
 }
@@ -336,6 +344,7 @@ function parse_mihomo_proxy(proxy) {
 			port: to_string(proxy.port),
 			uuid: proxy.uuid,
 			vless_flow: proxy.flow,
+			vless_encryption: (has_value(proxy.encryption) && proxy.encryption !== 'none') ? to_string(proxy.encryption) : null,
 			packet_encoding: proxy['packet-encoding'],
 			tls: (proxy.tls === true || proxy['reality-opts']) ? '1' : '0',
 			tls_sni,
@@ -897,7 +906,8 @@ function parse_uri(uri) {
 				tls_reality_public_key: params.pbk ? urldecode(params.pbk) : null,
 				tls_reality_short_id: params.sid,
 				tls_utls: sing_features.with_utls ? params.fp : null,
-				vless_flow: (params.security in ['tls', 'reality']) ? params.flow : null
+				vless_flow: (params.security in ['tls', 'reality']) ? params.flow : null,
+				vless_encryption: (has_value(params.encryption) && params.encryption !== 'none') ? urldecode(params.encryption) : null
 			};
 			switch(params.type) {
 			case 'grpc':
@@ -922,6 +932,13 @@ function parse_uri(uri) {
 					config.websocket_early_data = split(config.ws_path, '?ed=')[1];
 					config.ws_path = split(config.ws_path, '?ed=')[0];
 				}
+				break;
+			case 'xhttp':
+			case 'splithttp':
+				config.transport = 'xhttp';
+				config.xhttp_host = params.host ? urldecode(params.host) : null;
+				config.xhttp_path = params.path ? urldecode(params.path) : null;
+				config.xhttp_mode = params.mode || null;
 				break;
 			}
 
