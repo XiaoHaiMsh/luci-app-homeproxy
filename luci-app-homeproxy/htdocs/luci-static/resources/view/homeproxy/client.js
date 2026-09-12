@@ -341,14 +341,12 @@ return view.extend({
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '180';
-		o.rmempty = false;
 		o.depends('main_node', 'urltest');
 
 		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '50';
-		o.rmempty = false;
 		o.depends('main_node', 'urltest');
 
 		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'));
@@ -410,14 +408,12 @@ return view.extend({
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '180';
-		o.rmempty = false;
 		o.depends({'main_udp_node': 'urltest', 'main_node': /^((?!core_only).)+$/});
 
 		o = s.taboption('routing', form.Value, 'main_udp_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '50';
-		o.rmempty = false;
 		o.depends({'main_udp_node': 'urltest', 'main_node': /^((?!core_only).)+$/});
 
 		o = s.taboption('routing', form.Flag, 'main_udp_urltest_interrupt_exist_connections', _('Interrupt existing connections'));
@@ -502,7 +498,6 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
 			_('Additional DNS servers used together with the primary DNS server above. When set, queries are distributed across all of them according to the strategy below. Support UDP, TCP, DoH, DoQ, DoT.'));
-		so.rmempty = false;
 		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 		so.validate = function(section_id, value) {
 			if (section_id && value) {
@@ -528,7 +523,6 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
 			_('Additional DNS servers used together with the China DNS server above.'));
-		so.rmempty = false;
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.validate = function(section_id, value) {
 			if (section_id && value) {
@@ -563,7 +557,6 @@ return view.extend({
 			_('Overall time budget for the whole fallback exchange, in seconds. Leave empty for default (10s).'));
 		so.datatype = 'uinteger';
 		so.placeholder = '10';
-		so.rmempty = false;
 		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
@@ -577,7 +570,6 @@ return view.extend({
 			_('Specify target ports to be proxied. Multiple ports must be separated by commas.'));
 		o.value('', _('All ports'));
 		o.value('common', _('Common ports only (bypass P2P traffic)'));
-		o.rmempty = false;
 		o.depends({'main_node': /^((?!core_only).)+$/});
 		o.validate = function(section_id, value) {
 			if (section_id && value && value !== 'common') {
@@ -647,7 +639,6 @@ return view.extend({
 
 		so = ss.option(form.Value, 'custom_service_name', _('Service name'));
 		so.placeholder = _('e.g. My Service');
-		so.rmempty = false;
 		so.depends('source', 'custom');
 		so.modalonly = true;
 
@@ -692,7 +683,6 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'custom_url', _('Domain rule-set URL'));
 		so.placeholder = 'https://example.com/rule-set.srs';
-		so.rmempty = false;
 		so.depends({'source': 'custom', 'custom_mode': 'url_domain'});
 		so.depends({'source': 'custom', 'custom_mode': 'url_mixed'});
 		so.modalonly = true;
@@ -704,7 +694,6 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'custom_url_ip', _('IP rule-set URL'));
 		so.placeholder = 'https://example.com/rule-set.srs';
-		so.rmempty = false;
 		so.depends({'source': 'custom', 'custom_mode': 'url_ip'});
 		so.depends({'source': 'custom', 'custom_mode': 'url_mixed'});
 		so.modalonly = true;
@@ -729,7 +718,6 @@ return view.extend({
 		so.rows = 5;
 		so.monospace = true;
 		so.datatype = 'hostname';
-		so.rmempty = false;
 		so.depends({'source': 'custom', 'custom_mode': 'domains'});
 		so.modalonly = true;
 		so.validate = function(section_id, value) {
@@ -765,7 +753,6 @@ return view.extend({
 			_('The test interval in seconds.'));
 		so.datatype = 'uinteger';
 		so.placeholder = '120';
-		so.rmempty = false;
 		so.depends('node', 'urltest');
 		so.modalonly = true;
 
@@ -773,7 +760,6 @@ return view.extend({
 			_('The test tolerance in milliseconds.'));
 		so.datatype = 'uinteger';
 		so.placeholder = '40';
-		so.rmempty = false;
 		so.depends('node', 'urltest');
 		so.modalonly = true;
 
@@ -791,7 +777,7 @@ return view.extend({
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_secret', _('API secret'));
 		o.password = true;
-		o.rmempty = false;
+		o.rmempty = true;
 		o.depends({'main_node': /^((?!core_only).)+$/});
 
 		o = s.taboption('dashboard', form.Button, '_open_dashboard_normal', _('sing-box dashboard'));
@@ -821,14 +807,12 @@ return view.extend({
 			_('Only process traffic from specific interfaces. Leave empty for all.'));
 		so.multiple = true;
 		so.noaliases = true;
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = ss.taboption('interface', widgets.DeviceSelect, 'bind_interface', _('Bind interface'),
 			_('Bind outbound traffic to specific interface. Leave empty to auto detect.'));
 		so.multiple = false;
 		so.noaliases = true;
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		ss.tab('lan_ip_policy', _('LAN IP Policy'));
@@ -842,73 +826,57 @@ return view.extend({
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Direct IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv6_ips', _('Direct IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Direct MAC-s'), null, hosts);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'except_listed', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC-s'), null, hosts);
-		so.rmempty = false;
 		so.depends({'lan_proxy_mode': 'listed_only', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv4_ips', _('Gaming mode IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_gaming_mode_ipv6_ips', _('Gaming mode IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_gaming_mode_mac_addrs', _('Gaming mode MAC-s'), null, hosts);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv4_ips', _('Global proxy IPv4 IP-s'), null, 'ipv4', hosts, true);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_global_proxy_ipv6_ips', _('Global proxy IPv6 IP-s'), null, 'ipv6', hosts, true);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_global_proxy_mac_addrs', _('Global proxy MAC-s'), null, hosts);
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		ss.tab('wan_ip_policy', _('WAN IP Policy'));
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Proxy IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Direct IPv4 IP-s'));
 		so.datatype = 'or(ip4addr, cidr4)';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Direct IPv6 IP-s'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.ipv6_support': '1', 'homeproxy.config.main_node': /^((?!core_only).)+$/});
 
 		ss.tab('proxy_domain_list', _('Proxy Domain List'));
@@ -917,7 +885,6 @@ return view.extend({
 		so.rows = 10;
 		so.monospace = true;
 		so.datatype = 'hostname';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 		so.load = function() {
 			return L.resolveDefault(callReadDomainList('proxy_list')).then((res) => {
@@ -945,7 +912,6 @@ return view.extend({
 		so.rows = 10;
 		so.monospace = true;
 		so.datatype = 'hostname';
-		so.rmempty = false;
 		so.depends({'homeproxy.config.main_node': /^((?!core_only).)+$/});
 		so.load = function() {
 			return L.resolveDefault(callReadDomainList('direct_list')).then((res) => {
