@@ -226,15 +226,12 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 
 			uplink_data_placement: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_data_placement || null) : null,
 			uplink_data_key: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_data_key || null) : null,
-			uplink_chunk_size: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_chunk_size || null) : null,
-
-			/* Real field name is "download", not "download_settings" - see
-			 * the matching comment in generate_client.uc. */
-			download: (cfg.transport === 'xhttp' && (cfg.xhttp_download_host || cfg.xhttp_download_path)) ? {
-				host: cfg.xhttp_download_host || null,
-				path: cfg.xhttp_download_path || null,
-				x_padding_bytes: xhttp_padding(cfg.xhttp_download_padding_bytes || cfg.xhttp_padding_bytes)
-			} : null
+			uplink_chunk_size: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_chunk_size || null) : null
+			/* "download" is intentionally omitted here: sing-box-extended's
+			 * xhttp server (transport/v2rayxhttp/server.go) never reads
+			 * options.Download - it's a client-only field (used to dial a
+			 * separate stream-down leg, e.g. a different CDN). Emitting it
+			 * on the inbound side would be dead configuration. */
 		} : null
 	});
 });

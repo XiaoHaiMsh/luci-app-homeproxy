@@ -498,11 +498,6 @@ return view.extend({
 		o.depends('transport', 'xhttp');
 		o.modalonly = true;
 
-		o = s.option(form.Value, 'xhttp_method', _('Uplink method'),
-			_('HTTP method expected for uplink POST requests. Defaults to <code>POST</code>. Not enforced by the server, informational only.'));
-		o.depends('transport', 'xhttp');
-		o.modalonly = true;
-
 		o = s.option(form.DynamicList, 'xhttp_trusted_x_forwarded_for', _('Trusted X-Forwarded-For'),
 			_('IPs/CIDRs of trusted reverse proxies allowed to set the client IP via X-Forwarded-For.'));
 		o.depends('transport', 'xhttp');
@@ -534,21 +529,6 @@ return view.extend({
 		o = s.option(form.Value, 'xhttp_server_max_header_bytes', _('Max header bytes'),
 			_('Limits the size of HTTP request headers accepted by the server. Default <code>8192</code>.'));
 		o.datatype = 'uinteger';
-		o.depends('transport', 'xhttp');
-		o.modalonly = true;
-
-		o = s.option(form.Value, 'xhttp_download_host', _('Download host'),
-			_('Host expected on the separate stream-down download leg, if different from the main Host.'));
-		o.depends('transport', 'xhttp');
-		o.modalonly = true;
-
-		o = s.option(form.Value, 'xhttp_download_path', _('Download path'),
-			_('Path expected on the separate stream-down download leg, if different from the main Path.'));
-		o.depends('transport', 'xhttp');
-		o.modalonly = true;
-
-		o = s.option(form.Value, 'xhttp_download_padding_bytes', _('Download padding bytes'),
-			_('Falls back to the main padding bytes above if left empty.'));
 		o.depends('transport', 'xhttp');
 		o.modalonly = true;
 
