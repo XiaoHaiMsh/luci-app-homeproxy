@@ -1612,20 +1612,17 @@ function renderProviderSettings(section, data, features) {
 	o.value('local', _('Local (file)'));
 	o.default = 'remote';
 	o.rmempty = false;
-	o.modalonly = true;
 
 	o = s.option(form.Value, 'url', _('Subscription URL'));
 	o.depends('type', 'remote');
 	o.rmempty = false;
-	o.modalonly = true;
 
 	o = s.option(form.Value, 'path', _('Local file path'),
 		_('Absolute path to a subscription file on the router.'));
 	o.depends('type', 'local');
 	o.rmempty = false;
-	o.modalonly = true;
 
-	o = s.option(form.ListValue, 'user_agent', _('User-Agent'));
+	o = s.option(form.Value, 'user_agent', _('User-Agent'));
 	o.value('clash.meta');
 	o.value('sing-box');
 	o.value('v2rayNG');
@@ -1634,7 +1631,7 @@ function renderProviderSettings(section, data, features) {
 	o.depends('type', 'remote');
 	o.modalonly = true;
 
-	o = s.option(form.ListValue, 'download_detour', _('Download detour'));
+	o = s.option(form.Value, 'download_detour', _('Download detour'));
 	o.value('direct-out');
 	o.value('main-out');
 	o.default = 'direct-out';
@@ -1668,8 +1665,7 @@ function renderProviderSettings(section, data, features) {
 	o.rmempty = false;
 	o.modalonly = true;
 
-	o = s.option(form.Value, 'health_check_url', _('Health check URL'),
-		_('Leave empty to use the core\'s built-in test URL.'));
+	o = s.option(form.Value, 'health_check_url', _('Health check URL'));
 	o.placeholder = 'https://www.gstatic.com/generate_204';
 	o.depends('health_check_enabled', '1');
 	o.modalonly = true;

@@ -193,38 +193,24 @@ export function reconcileUrltestNodes(uci, config, logger) {
 		return (type === 'local') ? !isEmpty(uci.get(config, id, 'path')) : !isEmpty(uci.get(config, id, 'url'));
 	};
 
-	function reconcileList(section, option) {
+	/* A URLTest group's member list mixes node ids and provider ids (the UI
+	 * surfaces providers first). Keep an id only while it still identifies a
+	 * valid node or a usable provider. */
+	function reconcileMembersList(section, option) {
 		const current = uci.get(config, section, option);
 		const normalized = normalizeList(current);
-		const available = filterExistingNodes(uci, config, normalized, (node) => {
-			removed++;
-			log(sprintf('Node %s is gone, removing it from %s.%s.', node, section, option));
-		});
-
-		if (sprintf('%J', normalized) !== sprintf('%J', available)) {
-			if (length(available))
-				uci.set(config, section, option, available);
-			else
-				uci.delete(config, section, option);
-			changed = true;
-		}
-
-		return available;
-	};
-
-	/* "URLTest nodes" is a single merged picker holding both node ids and
-	 * provider ids, so an entry is kept as long as it still resolves to
-	 * either one. */
-	function reconcileMixedList(section, option) {
-		const current = uci.get(config, section, option);
-		const normalized = normalizeList(current);
+		const seen = {};
 		const available = [];
 		for (let id in normalized) {
+			if (isEmpty(id) || seen[id])
+				continue;
+			seen[id] = true;
+
 			if (is_valid_node(id) || is_valid_provider(id))
 				push(available, id);
 			else {
 				removed++;
-				log(sprintf('Node/provider %s is gone, removing it from %s.%s.', id, section, option));
+				log(sprintf('Group member %s is gone, removing it from %s.%s.', id, section, option));
 			}
 		}
 
@@ -254,8 +240,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 
 	const main_node = uci.get(config, 'config', 'main_node') || 'nil';
 	if (main_node === 'urltest') {
-		const mainNodes = reconcileMixedList('config', 'main_urltest_nodes');
-		if (!length(mainNodes)) {
+		const mainMembers = reconcileMembersList('config', 'main_urltest_nodes');
+		if (!length(mainMembers)) {
 			const fallback = fallbackFirstTarget();
 			uci.set(config, 'config', 'main_node', fallback);
 			changed = true;
@@ -274,8 +260,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 
 	const main_udp_node = uci.get(config, 'config', 'main_udp_node') || 'nil';
 	if (main_udp_node === 'urltest') {
-		const mainUdpNodes = reconcileMixedList('config', 'main_udp_urltest_nodes');
-		if (!length(mainUdpNodes)) {
+		const mainUdpMembers = reconcileMembersList('config', 'main_udp_urltest_nodes');
+		if (!length(mainUdpMembers)) {
 			uci.set(config, 'config', 'main_udp_node', 'same');
 			changed = true;
 			log('Main UDP URLTest group is empty; falling back to using the main node for UDP.');
@@ -291,8 +277,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 		const node = cfg.node || 'main-out';
 
 		if (node === 'urltest') {
-			const ruleNodes = reconcileList(cfg['.name'], 'urltest_nodes');
-			if (!length(ruleNodes)) {
+			const ruleMembers = reconcileMembersList(cfg['.name'], 'urltest_nodes');
+			if (!length(ruleMembers)) {
 				uci.set(config, cfg['.name'], 'node', 'main-out');
 				changed = true;
 				log(sprintf('Proxy Rule "%s" URLTest group is empty; falling back to the main node.', label));

@@ -3,7 +3,7 @@
 'use strict';
 
 import { cursor } from 'uci';
-import { isEmpty, normalizeList, parseURL, validation } from 'homeproxy';
+import { isEmpty, parseURL, validation } from 'homeproxy';
 
 const uci = cursor();
 
@@ -242,55 +242,6 @@ uci.foreach(uciconfig, 'custom_profile', (cfg) => {
 	uci.delete(uciconfig, cfg['.name']);
 });
 system('rm -rf "/etc/homeproxy/custom"');
-
-/* "URLTest providers" and "Use all providers" were folded into a single
- * merged "URLTest nodes" picker; carry any existing selection over and drop
- * the now-obsolete options. */
-function mergeUrltestProviders(providers_option, use_all_option, nodes_option) {
-	const providers = normalizeList(uci.get(uciconfig, ucimain, providers_option) || []);
-	const use_all = uci.get(uciconfig, ucimain, use_all_option) === '1';
-
-	if (use_all) {
-		/* "Use all providers" had no equivalent in the merged list; fold in
-		 * every currently usable provider so behavior is preserved. */
-		uci.foreach(uciconfig, 'provider', (cfg) => {
-			if (cfg.enabled === '0' || isEmpty(cfg.type) || !(cfg.type in ['local', 'remote']))
-				return;
-			if ((cfg.type === 'local') ? isEmpty(cfg.path) : isEmpty(cfg.url))
-				return;
-			if (!(cfg['.name'] in providers))
-				push(providers, cfg['.name']);
-		});
-	}
-
-	if (length(providers)) {
-		const nodes = normalizeList(uci.get(uciconfig, ucimain, nodes_option) || []);
-		for (let id in providers)
-			if (!(id in nodes))
-				push(nodes, id);
-		uci.set(uciconfig, ucimain, nodes_option, nodes);
-	}
-
-	uci.delete(uciconfig, ucimain, providers_option);
-	uci.delete(uciconfig, ucimain, use_all_option);
-}
-
-if (uci.get(uciconfig, ucimain, 'main_urltest_providers') != null ||
-    uci.get(uciconfig, ucimain, 'main_urltest_use_all_providers') != null)
-	mergeUrltestProviders('main_urltest_providers', 'main_urltest_use_all_providers', 'main_urltest_nodes');
-if (uci.get(uciconfig, ucimain, 'main_udp_urltest_providers') != null ||
-    uci.get(uciconfig, ucimain, 'main_udp_urltest_use_all_providers') != null)
-	mergeUrltestProviders('main_udp_urltest_providers', 'main_udp_urltest_use_all_providers', 'main_udp_urltest_nodes');
-
-/* Provider "Update interval" default moved from 30 minutes to 1440 (24h);
- * "Health check interval" moved from minutes to seconds (old default 3m ->
- * new default 180s). Leave explicit non-default values alone. */
-uci.foreach(uciconfig, 'provider', (cfg) => {
-	if (cfg.update_interval === '30')
-		uci.set(uciconfig, cfg['.name'], 'update_interval', '1440');
-	if (cfg.health_check_interval === '3')
-		uci.set(uciconfig, cfg['.name'], 'health_check_interval', '180');
-});
 
 if (!isEmpty(uci.changes(uciconfig)))
 	uci.commit(uciconfig);

@@ -94,14 +94,13 @@ return baseclass.extend({
 	}),
 
 	reconcileUrltestNodes(uciconfig) {
-		const available = Object.create(null);
-		const providers = Object.create(null);
+		const members = Object.create(null);
 		let firstNode = null;
 		let firstProvider = null;
 		let changed = false;
 
 		uci.sections(uciconfig, 'node', (section) => {
-			available[section['.name']] = true;
+			members[section['.name']] = true;
 			firstNode ??= section['.name'];
 		});
 
@@ -110,16 +109,16 @@ return baseclass.extend({
 				return;
 			if (section.type === 'local' ? !section.path : !section.url)
 				return;
-			providers[section['.name']] = true;
+			members[section['.name']] = true;
 			firstProvider ??= section['.name'];
 		});
 
-		function reconcileList(option, allowed) {
+		function reconcileList(option) {
 			const current = uci.get(uciconfig, 'config', option);
 			const normalized = Array.isArray(current) ? current : (current ? [ current ] : []);
 			const seen = Object.create(null);
 			const filtered = normalized.filter((id) => {
-				if (!id || seen[id] || !allowed[id])
+				if (!id || seen[id] || !members[id])
 					return false;
 				seen[id] = true;
 				return true;
@@ -133,28 +132,24 @@ return baseclass.extend({
 			return filtered;
 		}
 
-		/* "URLTest nodes" is a single merged picker holding both node ids and
-		 * provider ids, so it is reconciled against the union of both. */
-		const availableOrProvider = Object.assign(Object.create(null), available, providers);
-
-		const mainNodes = reconcileList('main_urltest_nodes', availableOrProvider);
+		const mainMembers = reconcileList('main_urltest_nodes');
 		const mainNode = uci.get(uciconfig, 'config', 'main_node');
-		if (mainNode === 'urltest' && !mainNodes.length) {
+		if (mainNode === 'urltest' && !mainMembers.length) {
 			uci.set(uciconfig, 'config', 'main_node', firstNode || firstProvider || 'nil');
 			changed = true;
 		}
-		else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' && !available[mainNode] && !providers[mainNode]) {
+		else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' && !members[mainNode]) {
 			uci.set(uciconfig, 'config', 'main_node', firstNode || firstProvider || 'nil');
 			changed = true;
 		}
 
-		const mainUdpNodes = reconcileList('main_udp_urltest_nodes', availableOrProvider);
+		const mainUdpMembers = reconcileList('main_udp_urltest_nodes');
 		const mainUdpNode = uci.get(uciconfig, 'config', 'main_udp_node');
-		if (mainUdpNode === 'urltest' && !mainUdpNodes.length) {
+		if (mainUdpNode === 'urltest' && !mainUdpMembers.length) {
 			uci.set(uciconfig, 'config', 'main_udp_node', 'same');
 			changed = true;
 		}
-		else if (mainUdpNode && mainUdpNode !== 'nil' && mainUdpNode !== 'same' && mainUdpNode !== 'urltest' && !available[mainUdpNode] && !providers[mainUdpNode]) {
+		else if (mainUdpNode && mainUdpNode !== 'nil' && mainUdpNode !== 'same' && mainUdpNode !== 'urltest' && !members[mainUdpNode]) {
 			uci.set(uciconfig, 'config', 'main_udp_node', 'same');
 			changed = true;
 		}
@@ -167,7 +162,7 @@ return baseclass.extend({
 				const normalized = Array.isArray(current) ? current : (current ? [ current ] : []);
 				const seen = Object.create(null);
 				const filtered = normalized.filter((n) => {
-					if (!n || seen[n] || !available[n])
+					if (!n || seen[n] || !members[n])
 						return false;
 					seen[n] = true;
 					return true;
@@ -183,7 +178,7 @@ return baseclass.extend({
 					changed = true;
 				}
 			}
-			else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && !available[node] && !providers[node]) {
+			else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && !members[node]) {
 				uci.set(uciconfig, cfg['.name'], 'node', 'main-out');
 				changed = true;
 			}

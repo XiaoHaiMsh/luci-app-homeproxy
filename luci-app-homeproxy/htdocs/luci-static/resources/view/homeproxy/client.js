@@ -359,15 +359,15 @@ return view.extend({
 		o = s.taboption('routing', form.ListValue, 'main_node', _('Main node'));
 		o.value('nil', _('Disable'));
 		o.value('urltest', _('URLTest'));
-		for (let i in proxy_providers)
-			o.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
 		o.default = 'nil';
 		o.rmempty = false;
 
 		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_nodes', _('URLTest nodes'),
-			_('List of nodes and providers to test.'));
+			_('List of nodes to test.'));
 		for (let i in proxy_providers)
 			o.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
@@ -379,8 +379,8 @@ return view.extend({
 			if (!section_id || this.section.formvalue(section_id, 'main_node') !== 'urltest')
 				return true;
 
-			let selected = Array.isArray(value) ? value : (value ? [ value ] : []);
-			if (selected.length)
+			let nodes = Array.isArray(value) ? value : (value ? [ value ] : []);
+			if (nodes.length)
 				return true;
 
 			return _('Select at least one URLTest node or provider.');
@@ -410,15 +410,15 @@ return view.extend({
 		o.value('nil', _('Disable'));
 		o.value('same', _('Same as main node'));
 		o.value('urltest', _('URLTest'));
-		for (let i in proxy_providers)
-			o.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
 		o.default = 'same';
 		o.rmempty = false;
 
 		o = s.taboption('routing', hp.CBIStaticList, 'main_udp_urltest_nodes', _('URLTest nodes'),
-			_('List of nodes and providers to test.'));
+			_('List of nodes to test.'));
 		for (let i in proxy_providers)
 			o.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
@@ -430,8 +430,8 @@ return view.extend({
 			if (!section_id || this.section.formvalue(section_id, 'main_udp_node') !== 'urltest')
 				return true;
 
-			let selected = Array.isArray(value) ? value : (value ? [ value ] : []);
-			if (selected.length)
+			let nodes = Array.isArray(value) ? value : (value ? [ value ] : []);
+			if (nodes.length)
 				return true;
 
 			return _('Select at least one URLTest node or provider.');
@@ -779,16 +779,18 @@ return view.extend({
 		so.value('urltest', _('Separate URLTest'));
 		so.value('direct-out', _('Direct'));
 		so.value('reject-out', _('Reject'));
-		for (let i in proxy_providers)
-			so.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
 			so.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			so.value(i, proxy_providers[i]);
 		so.default = 'main-out';
 		so.rmempty = false;
 		so.editable = true;
 
 		so = ss.option(hp.CBIStaticList, 'urltest_nodes', _('URLTest nodes'),
 			_('List of nodes to test.'));
+		for (let i in proxy_providers)
+			so.value(i, proxy_providers[i]);
 		for (let i in proxy_nodes)
 			so.value(i, proxy_nodes[i]);
 		so.depends('node', 'urltest');

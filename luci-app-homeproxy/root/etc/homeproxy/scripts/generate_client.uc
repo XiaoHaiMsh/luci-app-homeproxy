@@ -77,7 +77,7 @@ function node_out_tag(id) {
 
 /* Providers (sing-box-extended) are top-level subscription sources that the
  * core fetches/parses natively. Each provider exposes a list of outbounds that
- * any selector/urltest group can pull in via "providers"/"use_all_providers". */
+ * any selector/urltest group can pull in via "providers". */
 const uciprovider = 'provider';
 const provider_tags = {};
 const provider_label_registry = createNodeLabelRegistry();
@@ -114,14 +114,30 @@ function valid_provider_list(list) {
 	return result;
 }
 
+/* A URLTest member list may mix node ids and provider ids (the UI surfaces
+ * providers first). Split it so node ids map to outbound tags while provider
+ * ids map to top-level provider tags referenced by the group. */
+function split_urltest_members(list) {
+	const nodes = [];
+	const providers = [];
+	for (let id in normalizeList(list)) {
+		if (is_provider(id))
+			push(providers, provider_tag(id));
+		else if (uci.get(uciconfig, id) === 'node')
+			push(nodes, id);
+	}
+
+	return { nodes, providers };
+}
+
 function is_provider(id) {
 	return !isEmpty(id) && (id in provider_tags) && (uci.get(uciconfig, id) === 'provider');
 }
 
-/* Provider durations are stored as bare numbers in UCI: minutes for the update
- * interval, seconds for the health-check interval and timeout. The unit is
- * fixed by the UI, so here we only validate the number and append the unit,
- * falling back to a sane default when the field is empty. */
+/* Provider durations are stored as bare numbers in UCI: minutes for update
+ * interval, seconds for health-check interval and timeout. The unit is fixed by
+ * the UI, so here we only validate the number and append the unit, falling back
+ * to a sane default when the field is empty. */
 function providerMinutes(value, fallback) {
 	const v = trim(value ?? '');
 	return match(v, /^\d+$/) ? `${int(v)}m` : fallback;
@@ -163,13 +179,13 @@ function generate_provider(cfg) {
 	if (cfg.health_check_enabled === '1') {
 		provider.health_check = {
 			enabled: true,
-			/* Leave unset when the user didn't provide one: sing-box-extended
-			 * already ships its own default health-check test URL, so there is
-			 * no need to force gstatic here. */
-			url: isEmpty(cfg.health_check_url) ? null : cfg.health_check_url,
 			interval: providerSeconds(cfg.health_check_interval, '180s'),
 			timeout: providerSeconds(cfg.health_check_timeout, '8s')
 		};
+		/* sing-box ships with a default health-check URL, so only emit one when
+		 * the user explicitly configured it. */
+		if (!isEmpty(cfg.health_check_url))
+			provider.health_check.url = cfg.health_check_url;
 	}
 
 	return provider;
@@ -187,11 +203,7 @@ function first_valid_node() {
 function valid_node_list(list) {
 	let result = [];
 	for (let id in list) {
-		/* "URLTest nodes" lists may now contain provider ids alongside node
-		 * ids (they share one merged picker in the UI), so checking for a
-		 * truthy "type" isn't enough - provider sections have one too. Only
-		 * accept ids that actually belong to a "node" section. */
-		if (uci.get(uciconfig, id) === ucinode)
+		if (uci.get_all(uciconfig, id)?.type)
 			push(result, id);
 	}
 	return result;
@@ -822,17 +834,16 @@ config.outbounds = [
  * the core pulls provider outbounds into the group natively. A group may end up
  * with only providers (empty outbounds), which sing-box-extended accepts via its
  * built-in "Compatible" placeholder outbound. */
-function group_with_providers(type, tag, outbound_tags, providers_ref, extra) {
+function group_with_providers(type, tag, outbound_tags, provider_tags_list, extra) {
 	const group = {
 		type,
 		tag,
 		outbounds: length(outbound_tags) ? outbound_tags : [],
 		...extra
 	};
-	if (providers_ref.active) {
-		group.providers = providers_ref.providers;
-		group.use_all_providers = providers_ref.use_all_providers;
-	}
+	if (length(provider_tags_list))
+		group.providers = provider_tags_list;
+
 	return group;
 }
 
@@ -840,30 +851,20 @@ if (!isEmpty(main_node)) {
 	let urltest_nodes = [];
 
 	if (main_node === 'urltest') {
-		/* "URLTest nodes" is a single merged picker: it may hold both node ids
-		 * and provider ids, so split it here instead of reading a separate
-		 * "providers" option. */
-		const main_urltest_selection = normalizeList(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
-		const main_urltest_nodes = valid_node_list(main_urltest_selection);
-		const main_urltest_provider_ids = valid_provider_list(main_urltest_selection);
-		const main_urltest_providers = {
-			providers: length(main_urltest_provider_ids) ? map(main_urltest_provider_ids, (id) => provider_tag(id)) : null,
-			use_all_providers: null,
-			active: length(main_urltest_provider_ids) > 0
-		};
+		const main_urltest_members = split_urltest_members(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval');
 		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections');
 
-		if (length(main_urltest_nodes) || main_urltest_providers.active) {
+		if (length(main_urltest_members.nodes) || length(main_urltest_members.providers)) {
 			push(config.outbounds, group_with_providers('urltest', 'main-out',
-				map(main_urltest_nodes, (k) => node_out_tag(k)), main_urltest_providers, {
+				map(main_urltest_members.nodes, (k) => node_out_tag(k)), main_urltest_members.providers, {
 					interval: strToTime(main_urltest_interval),
 					tolerance: strToInt(main_urltest_tolerance),
 					idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
 					interrupt_exist_connections: (main_urltest_interrupt === '1') ? true : null,
 				}));
-			urltest_nodes = main_urltest_nodes;
+			urltest_nodes = main_urltest_members.nodes;
 		} else if (first_node_id) {
 
 			const fallback_cfg = uci.get_all(uciconfig, first_node_id) || {};
@@ -878,7 +879,7 @@ if (!isEmpty(main_node)) {
 		}
 	} else if (is_provider(main_node)) {
 		push(config.outbounds, group_with_providers('selector', 'main-out',
-			[], { providers: [ provider_tag(main_node) ], use_all_providers: null, active: true }, {}));
+			[], [ provider_tag(main_node) ], {}));
 	} else {
 		const main_node_cfg = uci.get_all(uciconfig, main_node) || {};
 		if (main_node_cfg.type === 'wireguard') {
@@ -891,33 +892,26 @@ if (!isEmpty(main_node)) {
 	}
 
 	if (main_udp_node === 'urltest') {
-		const main_udp_urltest_selection = normalizeList(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
-		const main_udp_urltest_nodes = valid_node_list(main_udp_urltest_selection);
-		const main_udp_urltest_provider_ids = valid_provider_list(main_udp_urltest_selection);
-		const main_udp_urltest_providers = {
-			providers: length(main_udp_urltest_provider_ids) ? map(main_udp_urltest_provider_ids, (id) => provider_tag(id)) : null,
-			use_all_providers: null,
-			active: length(main_udp_urltest_provider_ids) > 0
-		};
+		const main_udp_urltest_members = split_urltest_members(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
 		const main_udp_urltest_interval = uci.get(uciconfig, ucimain, 'main_udp_urltest_interval');
 		const main_udp_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_udp_urltest_tolerance');
 		const main_udp_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_udp_urltest_interrupt_exist_connections');
 
-		if (length(main_udp_urltest_nodes) || main_udp_urltest_providers.active) {
+		if (length(main_udp_urltest_members.nodes) || length(main_udp_urltest_members.providers)) {
 			push(config.outbounds, group_with_providers('urltest', 'main-udp-out',
-				map(main_udp_urltest_nodes, (k) => node_out_tag(k)), main_udp_urltest_providers, {
+				map(main_udp_urltest_members.nodes, (k) => node_out_tag(k)), main_udp_urltest_members.providers, {
 					interval: strToTime(main_udp_urltest_interval),
 					tolerance: strToInt(main_udp_urltest_tolerance),
 					idle_timeout: (strToInt(main_udp_urltest_interval) > 1800) ? `${main_udp_urltest_interval * 2}s` : null,
 					interrupt_exist_connections: (main_udp_urltest_interrupt === '1') ? true : null,
 				}));
-			urltest_nodes = [...urltest_nodes, ...filter(main_udp_urltest_nodes, (l) => !~index(urltest_nodes, l))];
+			urltest_nodes = [...urltest_nodes, ...filter(main_udp_urltest_members.nodes, (l) => !~index(urltest_nodes, l))];
 		} else if (main_udp_node !== 'nil' && first_node_id && main_node !== 'nil') {
 			main_udp_node = 'same';
 		}
 	} else if (dedicated_udp_node && is_provider(main_udp_node)) {
 		push(config.outbounds, group_with_providers('selector', 'main-udp-out',
-			[], { providers: [ provider_tag(main_udp_node) ], use_all_providers: null, active: true }, {}));
+			[], [ provider_tag(main_udp_node) ], {}));
 	} else if (dedicated_udp_node) {
 		const main_udp_node_cfg = uci.get_all(uciconfig, main_udp_node) || {};
 		if (main_udp_node_cfg.type === 'wireguard') {
@@ -956,7 +950,7 @@ if (!isEmpty(main_node))
 
 /* Top-level providers (sing-box-extended): emit one entry per enabled local/
  * remote provider so the core fetches and parses each subscription natively.
- * Groups reference them by tag via "providers"/"use_all_providers" above. */
+ * Groups reference them by tag via "providers" above. */
 config.providers = [];
 uci.foreach(uciconfig, uciprovider, (cfg) => {
 	if (!(cfg['.name'] in provider_tags))
@@ -1200,20 +1194,21 @@ if (!isEmpty(main_node)) {
 			} else if (node === 'reject-out') {
 				effective_outbound = 'block-out';
 			} else if (node === 'urltest') {
-				const rule_urltest_nodes = valid_node_list(cfg.urltest_nodes || []);
-				if (length(rule_urltest_nodes)) {
+				const rule_urltest_members = split_urltest_members(cfg.urltest_nodes || []);
+				const rule_nodes = rule_urltest_members.nodes;
+				if (length(rule_nodes) || length(rule_urltest_members.providers)) {
 					effective_outbound = 'app-' + rule_label + '-out';
 					if (!has_tag(effective_outbound)) {
-						push(config.outbounds, {
-							type: 'urltest',
-							tag: effective_outbound,
-							outbounds: map(rule_urltest_nodes, (k) => node_out_tag(k)),
-							interval: strToTime(cfg.urltest_interval || '120'),
-							tolerance: strToInt(cfg.urltest_tolerance || '40'),
-							idle_timeout: (strToInt(cfg.urltest_interval || '120') > 1800) ? `${(cfg.urltest_interval || '120') * 2}s` : null,
-							interrupt_exist_connections: (cfg.urltest_interrupt_exist_connections === '1') ? true : null
-						});
-						for (let k in rule_urltest_nodes)
+						push(config.outbounds, group_with_providers('urltest', effective_outbound,
+							map(rule_nodes, (k) => node_out_tag(k)),
+							rule_urltest_members.providers,
+							{
+								interval: strToTime(cfg.urltest_interval || '120'),
+								tolerance: strToInt(cfg.urltest_tolerance || '40'),
+								idle_timeout: (strToInt(cfg.urltest_interval || '120') > 1800) ? `${(cfg.urltest_interval || '120') * 2}s` : null,
+								interrupt_exist_connections: (cfg.urltest_interrupt_exist_connections === '1') ? true : null
+							}));
+						for (let k in rule_nodes)
 							add_node_outbound(k, node_out_tag(k));
 					}
 				}
