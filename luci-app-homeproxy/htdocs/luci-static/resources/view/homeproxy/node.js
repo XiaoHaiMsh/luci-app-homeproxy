@@ -1613,8 +1613,7 @@ function renderProviderSettings(section, data, features) {
 	o.default = 'remote';
 	o.rmempty = false;
 
-	o = s.option(form.Value, 'url', _('Subscription URL'),
-		_('A subscription URL (base64 share-link list, SIP008 JSON, or mihomo YAML). The core fetches and parses it natively.'));
+	o = s.option(form.Value, 'url', _('Subscription URL'));
 	o.depends('type', 'remote');
 	o.rmempty = false;
 
@@ -1624,17 +1623,22 @@ function renderProviderSettings(section, data, features) {
 	o.rmempty = false;
 
 	o = s.option(form.Value, 'user_agent', _('User-Agent'));
-	o.placeholder = 'sing-box';
+	o.value('clash.meta');
+	o.value('sing-box');
+	o.value('v2rayNG');
+	o.default = 'clash.meta';
 	o.depends('type', 'remote');
 
-	o = s.option(form.Value, 'download_detour', _('Download detour'),
-		_('Outbound tag used to download the subscription, e.g. direct-out.'));
-	o.placeholder = 'direct-out';
+	o = s.option(form.Value, 'download_detour', _('Download detour'));
+	o.value('direct-out');
+	o.value('main-out');
+	o.default = 'direct-out';
 	o.depends('type', 'remote');
 
-	o = s.option(form.Value, 'update_interval', _('Update interval'),
-		_('Go duration string, e.g. 30m, 1h.'));
-	o.placeholder = '30m';
+	o = s.option(form.Value, 'update_interval', _('Update interval'), _('In minutes.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '30';
+	o.default = '30';
 	o.depends('type', 'remote');
 
 	o = s.option(form.Value, 'include', _('Include (regex)'),
@@ -1656,14 +1660,14 @@ function renderProviderSettings(section, data, features) {
 	o.placeholder = 'https://www.gstatic.com/generate_204';
 	o.depends('health_check_enabled', '1');
 
-	o = s.option(form.Value, 'health_check_interval', _('Health check interval'),
-		_('Go duration string, e.g. 3m.'));
-	o.placeholder = '3m';
+	o = s.option(form.Value, 'health_check_interval', _('Health check interval'), _('In minutes.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '3';
 	o.depends('health_check_enabled', '1');
 
-	o = s.option(form.Value, 'health_check_timeout', _('Health check timeout'),
-		_('Go duration string, e.g. 5s.'));
-	o.placeholder = '5s';
+	o = s.option(form.Value, 'health_check_timeout', _('Health check timeout'), _('In seconds.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '8';
 	o.depends('health_check_enabled', '1');
 
 	return s;
@@ -1958,8 +1962,7 @@ return view.extend({
 			return this.map.save(null, true);
 		}
 
-		s.tab('providers', _('Providers'),
-			_('Subscription providers handled natively by sing-box: each provider is fetched and parsed by the core, and its outbounds can be pulled into any selector/URLTest group. Use "Main node" on the client page to select a provider.'));
+		s.tab('providers', _('Providers'));
 		o = s.taboption('providers', form.SectionValue, '_providers', form.GridSection, 'provider');
 		ss = renderProviderSettings(o.subsection, data, features);
 		ss.addremove = true;

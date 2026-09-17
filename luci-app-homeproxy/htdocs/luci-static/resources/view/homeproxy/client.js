@@ -371,7 +371,7 @@ return view.extend({
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_node', 'urltest');
-		o.rmempty = false;
+		o.rmempty = true;
 		o.retain = true;
 
 		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_providers', _('URLTest providers'),
@@ -379,8 +379,22 @@ return view.extend({
 		for (let i in proxy_providers)
 			o.value(i, proxy_providers[i]);
 		o.depends('main_node', 'urltest');
-		o.rmempty = false;
+		o.rmempty = true;
 		o.retain = true;
+		o.validate = function(section_id, value) {
+			if (!section_id || this.section.formvalue(section_id, 'main_node') !== 'urltest')
+				return true;
+
+			let nodes = this.section.formvalue(section_id, 'main_urltest_nodes');
+			nodes = Array.isArray(nodes) ? nodes : (nodes ? [ nodes ] : []);
+			let providers = Array.isArray(value) ? value : (value ? [ value ] : []);
+			let use_all = this.section.formvalue(section_id, 'main_urltest_use_all_providers') === '1';
+
+			if (nodes.length || providers.length || use_all)
+				return true;
+
+			return _('Select at least one URLTest node or provider.');
+		};
 
 		o = s.taboption('routing', form.Flag, 'main_urltest_use_all_providers', _('Use all providers'),
 			_('Pull outbounds from every enabled provider into this URLTest group.'));
@@ -425,7 +439,7 @@ return view.extend({
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_udp_node', 'urltest');
-		o.rmempty = false;
+		o.rmempty = true;
 		o.retain = true;
 
 		o = s.taboption('routing', hp.CBIStaticList, 'main_udp_urltest_providers', _('URLTest providers'),
@@ -433,8 +447,22 @@ return view.extend({
 		for (let i in proxy_providers)
 			o.value(i, proxy_providers[i]);
 		o.depends('main_udp_node', 'urltest');
-		o.rmempty = false;
+		o.rmempty = true;
 		o.retain = true;
+		o.validate = function(section_id, value) {
+			if (!section_id || this.section.formvalue(section_id, 'main_udp_node') !== 'urltest')
+				return true;
+
+			let nodes = this.section.formvalue(section_id, 'main_udp_urltest_nodes');
+			nodes = Array.isArray(nodes) ? nodes : (nodes ? [ nodes ] : []);
+			let providers = Array.isArray(value) ? value : (value ? [ value ] : []);
+			let use_all = this.section.formvalue(section_id, 'main_udp_urltest_use_all_providers') === '1';
+
+			if (nodes.length || providers.length || use_all)
+				return true;
+
+			return _('Select at least one URLTest node or provider.');
+		};
 
 		o = s.taboption('routing', form.Flag, 'main_udp_urltest_use_all_providers', _('Use all providers'),
 			_('Pull outbounds from every enabled provider into this URLTest group.'));
@@ -787,6 +815,8 @@ return view.extend({
 		so.value('reject-out', _('Reject'));
 		for (let i in proxy_nodes)
 			so.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			so.value(i, proxy_providers[i]);
 		so.default = 'main-out';
 		so.rmempty = false;
 		so.editable = true;

@@ -129,12 +129,18 @@ function is_provider(id) {
 	return !isEmpty(id) && (id in provider_tags) && (uci.get(uciconfig, id) === 'provider');
 }
 
-/* sing-box provider durations (update_interval / health check interval & timeout)
- * are Go duration strings ("30s", "5m", "1h"), not plain seconds, so they are
- * passed through verbatim and only emitted when non-empty. */
-function durationStr(value) {
+/* Provider durations are stored as bare numbers in UCI: minutes for update and
+ * health-check interval, seconds for health-check timeout. The unit is fixed by
+ * the UI, so here we only validate the number and append the unit, falling back
+ * to a sane default when the field is empty. */
+function providerMinutes(value, fallback) {
 	const v = trim(value ?? '');
-	return isEmpty(v) ? null : v;
+	return match(v, /^\d+$/) ? `${int(v)}m` : fallback;
+}
+
+function providerSeconds(value, fallback) {
+	const v = trim(value ?? '');
+	return match(v, /^\d+$/) ? `${int(v)}s` : fallback;
 }
 
 /* Emit a top-level "providers" entry for one enabled local/remote provider. The
@@ -153,9 +159,9 @@ function generate_provider(cfg) {
 		provider.path = cfg.path;
 	} else {
 		provider.url = cfg.url;
-		provider.user_agent = isEmpty(cfg.user_agent) ? null : cfg.user_agent;
-		provider.download_detour = isEmpty(cfg.download_detour) ? null : cfg.download_detour;
-		provider.update_interval = durationStr(cfg.update_interval);
+		provider.user_agent = isEmpty(cfg.user_agent) ? 'clash.meta' : cfg.user_agent;
+		provider.download_detour = isEmpty(cfg.download_detour) ? 'direct-out' : cfg.download_detour;
+		provider.update_interval = providerMinutes(cfg.update_interval, '30m');
 		/* exclude/include are remote-only filter fields (not part of the local
 		 * provider schema); emitting them on a local provider would trip the
 		 * core's strict JSON decoding. */
@@ -168,9 +174,9 @@ function generate_provider(cfg) {
 	if (cfg.health_check_enabled === '1') {
 		provider.health_check = {
 			enabled: true,
-			url: isEmpty(cfg.health_check_url) ? null : cfg.health_check_url,
-			interval: durationStr(cfg.health_check_interval),
-			timeout: durationStr(cfg.health_check_timeout)
+			url: isEmpty(cfg.health_check_url) ? 'https://www.gstatic.com/generate_204' : cfg.health_check_url,
+			interval: providerMinutes(cfg.health_check_interval, '3m'),
+			timeout: providerSeconds(cfg.health_check_timeout, '8s')
 		};
 	}
 

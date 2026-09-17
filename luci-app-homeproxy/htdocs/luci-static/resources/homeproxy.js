@@ -185,7 +185,7 @@ return baseclass.extend({
 					changed = true;
 				}
 			}
-			else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && !available[node]) {
+			else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && !available[node] && !providers[node]) {
 				uci.set(uciconfig, cfg['.name'], 'node', 'main-out');
 				changed = true;
 			}

@@ -300,7 +300,7 @@ export function reconcileUrltestNodes(uci, config, logger) {
 				changed = true;
 				log(sprintf('Proxy Rule "%s" URLTest group is empty; falling back to the main node.', label));
 			}
-		} else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && uci.get(config, node) !== 'node') {
+		} else if (node !== 'main-out' && node !== 'direct-out' && node !== 'reject-out' && uci.get(config, node) !== 'node' && !is_valid_provider(node)) {
 			uci.set(config, cfg['.name'], 'node', 'main-out');
 			changed = true;
 			log(sprintf('Proxy Rule "%s" node is gone; falling back to the main node.', label));

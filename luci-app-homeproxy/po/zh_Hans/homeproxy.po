@@ -1224,6 +1224,9 @@ msgstr "导入分享链接"
 msgid "In seconds."
 msgstr "单位：秒。"
 
+msgid "In minutes."
+msgstr "单位：分钟。"
+
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1126
 msgid "In seconds. Disabled by default."
 msgstr "单位：秒。默认禁用。"
@@ -3125,6 +3128,9 @@ msgstr "URLTest 提供者"
 
 msgid "List of providers to test."
 msgstr "要测试的提供者列表。"
+
+msgid "Select at least one URLTest node or provider."
+msgstr "请至少选择一个 URLTest 节点或提供者。"
 
 msgid "Use all providers"
 msgstr "使用全部提供者"
