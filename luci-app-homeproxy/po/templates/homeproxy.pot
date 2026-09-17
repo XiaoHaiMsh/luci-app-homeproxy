@@ -3099,6 +3099,9 @@ msgstr ""
 msgid "Health check URL"
 msgstr ""
 
+msgid "Leave empty to use the core's built-in test URL."
+msgstr ""
+
 msgid "Health check interval"
 msgstr ""
 
@@ -3114,20 +3117,17 @@ msgstr ""
 msgid "A single vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://, tuic:// or anytls:// share link. The link is parsed natively by sing-box at startup instead of expanding every field here."
 msgstr ""
 
-msgid "URLTest providers"
-msgstr ""
-
-msgid "List of providers to test."
-msgstr ""
-
-msgid "Use all providers"
-msgstr ""
-
-msgid "Pull outbounds from every enabled provider into this URLTest group."
+msgid "Select at least one URLTest node or provider."
 msgstr ""
 
 msgid "Provider: %s"
 msgstr ""
 
 msgid "UDP Provider: %s"
+msgstr ""
+
+msgid "Subscription name"
+msgstr ""
+
+msgid "List of nodes and providers to test."
 msgstr ""

@@ -212,16 +212,19 @@ export function reconcileUrltestNodes(uci, config, logger) {
 		return available;
 	};
 
-	function reconcileProviderList(section, option) {
+	/* "URLTest nodes" is a single merged picker holding both node ids and
+	 * provider ids, so an entry is kept as long as it still resolves to
+	 * either one. */
+	function reconcileMixedList(section, option) {
 		const current = uci.get(config, section, option);
 		const normalized = normalizeList(current);
 		const available = [];
 		for (let id in normalized) {
-			if (is_valid_provider(id))
+			if (is_valid_node(id) || is_valid_provider(id))
 				push(available, id);
 			else {
 				removed++;
-				log(sprintf('Provider %s is gone, removing it from %s.%s.', id, section, option));
+				log(sprintf('Node/provider %s is gone, removing it from %s.%s.', id, section, option));
 			}
 		}
 
@@ -234,10 +237,6 @@ export function reconcileUrltestNodes(uci, config, logger) {
 		}
 
 		return available;
-	};
-
-	function use_all(option) {
-		return uci.get(config, 'config', option) === '1';
 	};
 
 	function first_valid_provider() {
@@ -255,9 +254,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 
 	const main_node = uci.get(config, 'config', 'main_node') || 'nil';
 	if (main_node === 'urltest') {
-		const mainNodes = reconcileList('config', 'main_urltest_nodes');
-		const mainProviders = reconcileProviderList('config', 'main_urltest_providers');
-		if (!length(mainNodes) && !length(mainProviders) && !use_all('main_urltest_use_all_providers')) {
+		const mainNodes = reconcileMixedList('config', 'main_urltest_nodes');
+		if (!length(mainNodes)) {
 			const fallback = fallbackFirstTarget();
 			uci.set(config, 'config', 'main_node', fallback);
 			changed = true;
@@ -276,9 +274,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 
 	const main_udp_node = uci.get(config, 'config', 'main_udp_node') || 'nil';
 	if (main_udp_node === 'urltest') {
-		const mainUdpNodes = reconcileList('config', 'main_udp_urltest_nodes');
-		const mainUdpProviders = reconcileProviderList('config', 'main_udp_urltest_providers');
-		if (!length(mainUdpNodes) && !length(mainUdpProviders) && !use_all('main_udp_urltest_use_all_providers')) {
+		const mainUdpNodes = reconcileMixedList('config', 'main_udp_urltest_nodes');
+		if (!length(mainUdpNodes)) {
 			uci.set(config, 'config', 'main_udp_node', 'same');
 			changed = true;
 			log('Main UDP URLTest group is empty; falling back to using the main node for UDP.');

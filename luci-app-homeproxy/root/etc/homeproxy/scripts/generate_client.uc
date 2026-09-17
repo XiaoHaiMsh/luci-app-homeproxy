@@ -114,25 +114,14 @@ function valid_provider_list(list) {
 	return result;
 }
 
-function provider_group_refs(providers_option, use_all_option) {
-	const tags = map(valid_provider_list(uci.get(uciconfig, ucimain, providers_option)), (id) => provider_tag(id));
-	const use_all = strToBool(uci.get(uciconfig, ucimain, use_all_option));
-
-	return {
-		providers: length(tags) ? tags : null,
-		use_all_providers: (use_all === true) ? true : null,
-		active: (use_all === true) || length(tags)
-	};
-}
-
 function is_provider(id) {
 	return !isEmpty(id) && (id in provider_tags) && (uci.get(uciconfig, id) === 'provider');
 }
 
-/* Provider durations are stored as bare numbers in UCI: minutes for update and
- * health-check interval, seconds for health-check timeout. The unit is fixed by
- * the UI, so here we only validate the number and append the unit, falling back
- * to a sane default when the field is empty. */
+/* Provider durations are stored as bare numbers in UCI: minutes for the update
+ * interval, seconds for the health-check interval and timeout. The unit is
+ * fixed by the UI, so here we only validate the number and append the unit,
+ * falling back to a sane default when the field is empty. */
 function providerMinutes(value, fallback) {
 	const v = trim(value ?? '');
 	return match(v, /^\d+$/) ? `${int(v)}m` : fallback;
@@ -161,7 +150,7 @@ function generate_provider(cfg) {
 		provider.url = cfg.url;
 		provider.user_agent = isEmpty(cfg.user_agent) ? 'clash.meta' : cfg.user_agent;
 		provider.download_detour = isEmpty(cfg.download_detour) ? 'direct-out' : cfg.download_detour;
-		provider.update_interval = providerMinutes(cfg.update_interval, '30m');
+		provider.update_interval = providerMinutes(cfg.update_interval, '1440m');
 		/* exclude/include are remote-only filter fields (not part of the local
 		 * provider schema); emitting them on a local provider would trip the
 		 * core's strict JSON decoding. */
@@ -174,8 +163,11 @@ function generate_provider(cfg) {
 	if (cfg.health_check_enabled === '1') {
 		provider.health_check = {
 			enabled: true,
-			url: isEmpty(cfg.health_check_url) ? 'https://www.gstatic.com/generate_204' : cfg.health_check_url,
-			interval: providerMinutes(cfg.health_check_interval, '3m'),
+			/* Leave unset when the user didn't provide one: sing-box-extended
+			 * already ships its own default health-check test URL, so there is
+			 * no need to force gstatic here. */
+			url: isEmpty(cfg.health_check_url) ? null : cfg.health_check_url,
+			interval: providerSeconds(cfg.health_check_interval, '180s'),
 			timeout: providerSeconds(cfg.health_check_timeout, '8s')
 		};
 	}
@@ -195,7 +187,11 @@ function first_valid_node() {
 function valid_node_list(list) {
 	let result = [];
 	for (let id in list) {
-		if (uci.get_all(uciconfig, id)?.type)
+		/* "URLTest nodes" lists may now contain provider ids alongside node
+		 * ids (they share one merged picker in the UI), so checking for a
+		 * truthy "type" isn't enough - provider sections have one too. Only
+		 * accept ids that actually belong to a "node" section. */
+		if (uci.get(uciconfig, id) === ucinode)
 			push(result, id);
 	}
 	return result;
@@ -844,8 +840,17 @@ if (!isEmpty(main_node)) {
 	let urltest_nodes = [];
 
 	if (main_node === 'urltest') {
-		const main_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
-		const main_urltest_providers = provider_group_refs('main_urltest_providers', 'main_urltest_use_all_providers');
+		/* "URLTest nodes" is a single merged picker: it may hold both node ids
+		 * and provider ids, so split it here instead of reading a separate
+		 * "providers" option. */
+		const main_urltest_selection = normalizeList(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
+		const main_urltest_nodes = valid_node_list(main_urltest_selection);
+		const main_urltest_provider_ids = valid_provider_list(main_urltest_selection);
+		const main_urltest_providers = {
+			providers: length(main_urltest_provider_ids) ? map(main_urltest_provider_ids, (id) => provider_tag(id)) : null,
+			use_all_providers: null,
+			active: length(main_urltest_provider_ids) > 0
+		};
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval');
 		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections');
@@ -886,8 +891,14 @@ if (!isEmpty(main_node)) {
 	}
 
 	if (main_udp_node === 'urltest') {
-		const main_udp_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
-		const main_udp_urltest_providers = provider_group_refs('main_udp_urltest_providers', 'main_udp_urltest_use_all_providers');
+		const main_udp_urltest_selection = normalizeList(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
+		const main_udp_urltest_nodes = valid_node_list(main_udp_urltest_selection);
+		const main_udp_urltest_provider_ids = valid_provider_list(main_udp_urltest_selection);
+		const main_udp_urltest_providers = {
+			providers: length(main_udp_urltest_provider_ids) ? map(main_udp_urltest_provider_ids, (id) => provider_tag(id)) : null,
+			use_all_providers: null,
+			active: length(main_udp_urltest_provider_ids) > 0
+		};
 		const main_udp_urltest_interval = uci.get(uciconfig, ucimain, 'main_udp_urltest_interval');
 		const main_udp_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_udp_urltest_tolerance');
 		const main_udp_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_udp_urltest_interrupt_exist_connections');

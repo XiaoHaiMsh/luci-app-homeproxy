@@ -3108,6 +3108,9 @@ msgstr "定期对由该订阅提供的出站进行健康检查。"
 msgid "Health check URL"
 msgstr "健康检查网址"
 
+msgid "Leave empty to use the core's built-in test URL."
+msgstr "留空则使用核心内置的测速网址。"
+
 msgid "Health check interval"
 msgstr "健康检查间隔"
 
@@ -3123,23 +3126,17 @@ msgstr "分享链接"
 msgid "A single vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://, tuic:// or anytls:// share link. The link is parsed natively by sing-box at startup instead of expanding every field here."
 msgstr "单个 vless://、vmess://、ss://、trojan://、hysteria://、hysteria2://、tuic:// 或 anytls:// 分享链接。链接会在启动时由 sing-box 原生解析，无需在此逐个填写字段。"
 
-msgid "URLTest providers"
-msgstr "URLTest 提供者"
-
-msgid "List of providers to test."
-msgstr "要测试的提供者列表。"
-
 msgid "Select at least one URLTest node or provider."
 msgstr "请至少选择一个 URLTest 节点或提供者。"
-
-msgid "Use all providers"
-msgstr "使用全部提供者"
-
-msgid "Pull outbounds from every enabled provider into this URLTest group."
-msgstr "将每个已启用提供者的出站导入此 URLTest 分组。"
 
 msgid "Provider: %s"
 msgstr "提供者：%s"
 
 msgid "UDP Provider: %s"
 msgstr "UDP 提供者：%s"
+
+msgid "Subscription name"
+msgstr "订阅名称"
+
+msgid "List of nodes and providers to test."
+msgstr "要测试的节点和提供者列表。"

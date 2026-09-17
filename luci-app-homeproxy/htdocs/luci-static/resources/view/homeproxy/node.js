@@ -1602,7 +1602,7 @@ function renderProviderSettings(section, data, features) {
 	o.rmempty = false;
 	o.editable = true;
 
-	o = s.option(form.Value, 'label', _('Label'));
+	o = s.option(form.Value, 'label', _('Subscription name'));
 	o.load = L.bind(hp.loadDefaultLabel, this, data[0]);
 	o.validate = L.bind(hp.validateUniqueValue, this, data[0], 'provider', 'label');
 	o.modalonly = true;
@@ -1612,63 +1612,80 @@ function renderProviderSettings(section, data, features) {
 	o.value('local', _('Local (file)'));
 	o.default = 'remote';
 	o.rmempty = false;
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'url', _('Subscription URL'));
 	o.depends('type', 'remote');
 	o.rmempty = false;
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'path', _('Local file path'),
 		_('Absolute path to a subscription file on the router.'));
 	o.depends('type', 'local');
 	o.rmempty = false;
+	o.modalonly = true;
 
-	o = s.option(form.Value, 'user_agent', _('User-Agent'));
+	o = s.option(form.ListValue, 'user_agent', _('User-Agent'));
 	o.value('clash.meta');
 	o.value('sing-box');
 	o.value('v2rayNG');
 	o.default = 'clash.meta';
+	o.rmempty = false;
 	o.depends('type', 'remote');
+	o.modalonly = true;
 
-	o = s.option(form.Value, 'download_detour', _('Download detour'));
+	o = s.option(form.ListValue, 'download_detour', _('Download detour'));
 	o.value('direct-out');
 	o.value('main-out');
 	o.default = 'direct-out';
+	o.rmempty = false;
 	o.depends('type', 'remote');
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'update_interval', _('Update interval'), _('In minutes.'));
 	o.datatype = 'uinteger';
-	o.placeholder = '30';
-	o.default = '30';
+	o.placeholder = '1440';
+	o.default = '1440';
 	o.depends('type', 'remote');
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'include', _('Include (regex)'),
 		_('Only keep provider outbounds whose tag matches this regular expression.'));
 	o.depends('type', 'remote');
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'exclude', _('Exclude (regex)'),
 		_('Drop provider outbounds whose tag matches this regular expression.'));
 	o.depends('type', 'remote');
+	o.modalonly = true;
 
 	o = s.option(form.Flag, 'remove_emojis', _('Remove emojis'));
 	o.rmempty = false;
+	o.modalonly = true;
 
 	o = s.option(form.Flag, 'health_check_enabled', _('Enable health check'),
 		_('Periodically health-check outbounds provided by this subscription.'));
 	o.rmempty = false;
+	o.modalonly = true;
 
-	o = s.option(form.Value, 'health_check_url', _('Health check URL'));
+	o = s.option(form.Value, 'health_check_url', _('Health check URL'),
+		_('Leave empty to use the core\'s built-in test URL.'));
 	o.placeholder = 'https://www.gstatic.com/generate_204';
 	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
 
-	o = s.option(form.Value, 'health_check_interval', _('Health check interval'), _('In minutes.'));
+	o = s.option(form.Value, 'health_check_interval', _('Health check interval'), _('In seconds.'));
 	o.datatype = 'uinteger';
-	o.placeholder = '3';
+	o.placeholder = '180';
+	o.default = '180';
 	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'health_check_timeout', _('Health check timeout'), _('In seconds.'));
 	o.datatype = 'uinteger';
 	o.placeholder = '8';
 	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
 
 	return s;
 }

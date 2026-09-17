@@ -133,13 +133,13 @@ return baseclass.extend({
 			return filtered;
 		}
 
-		const useAll = (option) => uci.get(uciconfig, 'config', option) === '1';
+		/* "URLTest nodes" is a single merged picker holding both node ids and
+		 * provider ids, so it is reconciled against the union of both. */
+		const availableOrProvider = Object.assign(Object.create(null), available, providers);
 
-		const mainNodes = reconcileList('main_urltest_nodes', available);
-		const mainProviders = reconcileList('main_urltest_providers', providers);
-		const mainUseAll = useAll('main_urltest_use_all_providers');
+		const mainNodes = reconcileList('main_urltest_nodes', availableOrProvider);
 		const mainNode = uci.get(uciconfig, 'config', 'main_node');
-		if (mainNode === 'urltest' && !mainNodes.length && !mainProviders.length && !mainUseAll) {
+		if (mainNode === 'urltest' && !mainNodes.length) {
 			uci.set(uciconfig, 'config', 'main_node', firstNode || firstProvider || 'nil');
 			changed = true;
 		}
@@ -148,11 +148,9 @@ return baseclass.extend({
 			changed = true;
 		}
 
-		const mainUdpNodes = reconcileList('main_udp_urltest_nodes', available);
-		const mainUdpProviders = reconcileList('main_udp_urltest_providers', providers);
-		const mainUdpUseAll = useAll('main_udp_urltest_use_all_providers');
+		const mainUdpNodes = reconcileList('main_udp_urltest_nodes', availableOrProvider);
 		const mainUdpNode = uci.get(uciconfig, 'config', 'main_udp_node');
-		if (mainUdpNode === 'urltest' && !mainUdpNodes.length && !mainUdpProviders.length && !mainUdpUseAll) {
+		if (mainUdpNode === 'urltest' && !mainUdpNodes.length) {
 			uci.set(uciconfig, 'config', 'main_udp_node', 'same');
 			changed = true;
 		}
