@@ -165,6 +165,21 @@ return view.extend({
 					String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport));
 		});
 
+		/* Providers are selectable exactly like nodes, but expose a list of
+		 * outbounds managed natively by sing-box rather than a single one. Only
+		 * usable providers (enabled, valid type, source set) are offered here so
+		 * the dropdown never offers a section the config generator would skip. */
+		let proxy_providers = {};
+		uci.sections(data[0], 'provider', (res) => {
+			if (res.enabled === '0' || !['local', 'remote'].includes(res.type))
+				return;
+			if (res.type === 'local' ? !res.path : !res.url)
+				return;
+
+			proxy_providers[res['.name']] =
+				String.format('[%s] %s', _('Provider'), res.label || res['.name']);
+		});
+
 		function formatDelay(delay) {
 			if (delay === null || delay === undefined)
 				return '';
@@ -191,11 +206,23 @@ return view.extend({
 					currentNodeLabel = _('URLTest: %s').format(nodeName) + formatDelay(current.delay);
 				}
 
+				if (current?.active && proxy_providers[current.mode]) {
+					let active = current.active || {};
+					let nodeName = active.label || active.id || _('Invalid node');
+					currentNodeLabel = _('Provider: %s').format(nodeName) + formatDelay(current.delay);
+				}
+
 				if (current?.udp_mode === 'urltest') {
 					let udpActive = current.udp_active || {};
 					let udpNodeName = (udpActive?.id && udpActive.id !== 'urltest') ?
 						(proxy_nodes[udpActive.id] || udpActive.label || udpActive.id) : _('Invalid node');
 					currentUdpNodeLabel = _('UDP URLTest: %s').format(udpNodeName) + formatDelay(current.udp_delay);
+				}
+
+				if (current?.udp_active && proxy_providers[current.udp_mode]) {
+					let udpActive = current.udp_active || {};
+					let udpNodeName = udpActive.label || udpActive.id || _('Invalid node');
+					currentUdpNodeLabel = _('UDP Provider: %s').format(udpNodeName) + formatDelay(current.udp_delay);
 				}
 
 				let view = document.getElementById('service_status');
@@ -334,6 +361,8 @@ return view.extend({
 		o.value('urltest', _('URLTest'));
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
 		o.default = 'nil';
 		o.rmempty = false;
 
@@ -343,6 +372,21 @@ return view.extend({
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_node', 'urltest');
 		o.rmempty = false;
+		o.retain = true;
+
+		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_providers', _('URLTest providers'),
+			_('List of providers to test.'));
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
+		o.depends('main_node', 'urltest');
+		o.rmempty = false;
+		o.retain = true;
+
+		o = s.taboption('routing', form.Flag, 'main_urltest_use_all_providers', _('Use all providers'),
+			_('Pull outbounds from every enabled provider into this URLTest group.'));
+		o.default = o.enabled;
+		o.rmempty = false;
+		o.depends('main_node', 'urltest');
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
@@ -371,6 +415,8 @@ return view.extend({
 		o.value('urltest', _('URLTest'));
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
 		o.default = 'same';
 		o.rmempty = false;
 
@@ -380,6 +426,21 @@ return view.extend({
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_udp_node', 'urltest');
 		o.rmempty = false;
+		o.retain = true;
+
+		o = s.taboption('routing', hp.CBIStaticList, 'main_udp_urltest_providers', _('URLTest providers'),
+			_('List of providers to test.'));
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
+		o.depends('main_udp_node', 'urltest');
+		o.rmempty = false;
+		o.retain = true;
+
+		o = s.taboption('routing', form.Flag, 'main_udp_urltest_use_all_providers', _('Use all providers'),
+			_('Pull outbounds from every enabled provider into this URLTest group.'));
+		o.default = o.enabled;
+		o.rmempty = false;
+		o.depends('main_udp_node', 'urltest');
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'main_udp_urltest_interval', _('Test interval'),

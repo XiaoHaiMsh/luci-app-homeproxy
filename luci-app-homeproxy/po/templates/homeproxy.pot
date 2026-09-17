@@ -3035,3 +3035,99 @@ msgstr ""
 msgid "valid uuid"
 msgstr ""
 
+
+msgid "Providers"
+msgstr ""
+
+msgid "Subscription providers handled natively by sing-box: each provider is fetched and parsed by the core, and its outbounds can be pulled into any selector/URLTest group. Use \"Main node\" on the client page to select a provider."
+msgstr ""
+
+msgid "Provider"
+msgstr ""
+
+msgid "Add a provider"
+msgstr ""
+
+msgid "Remote (URL)"
+msgstr ""
+
+msgid "Local (file)"
+msgstr ""
+
+msgid "Subscription URL"
+msgstr ""
+
+msgid "A subscription URL (base64 share-link list, SIP008 JSON, or mihomo YAML). The core fetches and parses it natively."
+msgstr ""
+
+msgid "Local file path"
+msgstr ""
+
+msgid "Absolute path to a subscription file on the router."
+msgstr ""
+
+msgid "Outbound tag used to download the subscription, e.g. direct-out."
+msgstr ""
+
+msgid "Update interval"
+msgstr ""
+
+msgid "Go duration string, e.g. 30m, 1h."
+msgstr ""
+
+msgid "Include (regex)"
+msgstr ""
+
+msgid "Only keep provider outbounds whose tag matches this regular expression."
+msgstr ""
+
+msgid "Exclude (regex)"
+msgstr ""
+
+msgid "Drop provider outbounds whose tag matches this regular expression."
+msgstr ""
+
+msgid "Remove emojis"
+msgstr ""
+
+msgid "Enable health check"
+msgstr ""
+
+msgid "Periodically health-check outbounds provided by this subscription."
+msgstr ""
+
+msgid "Health check URL"
+msgstr ""
+
+msgid "Health check interval"
+msgstr ""
+
+msgid "Health check timeout"
+msgstr ""
+
+msgid "Share link (parser)"
+msgstr ""
+
+msgid "Share link"
+msgstr ""
+
+msgid "A single vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://, tuic:// or anytls:// share link. The link is parsed natively by sing-box at startup instead of expanding every field here."
+msgstr ""
+
+msgid "URLTest providers"
+msgstr ""
+
+msgid "List of providers to test."
+msgstr ""
+
+msgid "Use all providers"
+msgstr ""
+
+msgid "Pull outbounds from every enabled provider into this URLTest group."
+msgstr ""
+
+msgid "Provider: %s"
+msgstr ""
+
+msgid "UDP Provider: %s"
+msgstr ""

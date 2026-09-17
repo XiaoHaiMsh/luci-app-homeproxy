@@ -387,11 +387,28 @@ const methods = {
 				return { id: section_id, label, type: section.type || null };
 			};
 
+			const formatProvider = (section_id, fallback_label) => {
+				if (!section_id)
+					return { id: section_id, label: fallback_label || section_id, type: null };
+
+				const section = uci.get_all('homeproxy', section_id);
+				if (!section || section['.type'] !== 'provider')
+					return { id: section_id, label: fallback_label || section_id, type: null };
+
+				return { id: section_id, label: trim(section.label || '') || section_id, type: 'provider' };
+			};
+
+			/* A provider main/UDP node resolves to a selector group over the clash
+			 * API exactly like URLTest does, so it must trigger the API query too. */
+			const isProviderSection = (section_id) =>
+				!!section_id && !(section_id in ['nil', 'same']) &&
+				(uci.get_all('homeproxy', section_id)?.['.type'] === 'provider');
+
 			const main_node = trim(uci.get('homeproxy', 'config', 'main_node') || 'nil');
 			const main_udp_node = trim(uci.get('homeproxy', 'config', 'main_udp_node') || 'nil');
 
-			const main_needs_api = (main_node === 'urltest');
-			const udp_needs_api = (main_udp_node === 'urltest');
+			const main_needs_api = (main_node === 'urltest' || isProviderSection(main_node));
+			const udp_needs_api = (main_udp_node === 'urltest' || isProviderSection(main_udp_node));
 
 			let data = null, api_error = null;
 			if (main_needs_api || udp_needs_api) {
@@ -442,7 +459,9 @@ const methods = {
 				active = formatNode(main_node, (main_node === 'nil') ? 'Disable' : null);
 				error = null;
 			} else if (api_error) {
-				active = { id: 'urltest', label: 'URLTest', type: 'urltest' };
+				active = (main_node === 'urltest')
+					? { id: 'urltest', label: 'URLTest', type: 'urltest' }
+					: formatProvider(main_node);
 				error = api_error;
 			} else {
 				const r = resolveGroupTag('main-out');
@@ -454,7 +473,9 @@ const methods = {
 			let udp_active = null, udp_error = null, udp_delay = null;
 			if (udp_needs_api) {
 				if (api_error) {
-					udp_active = { id: 'urltest', label: 'URLTest', type: 'urltest' };
+					udp_active = (main_udp_node === 'urltest')
+						? { id: 'urltest', label: 'URLTest', type: 'urltest' }
+						: formatProvider(main_udp_node);
 					udp_error = api_error;
 				} else {
 					const r = resolveGroupTag('main-udp-out');

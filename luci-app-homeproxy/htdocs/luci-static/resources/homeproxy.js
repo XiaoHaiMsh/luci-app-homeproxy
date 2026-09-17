@@ -95,7 +95,9 @@ return baseclass.extend({
 
 	reconcileUrltestNodes(uciconfig) {
 		const available = Object.create(null);
+		const providers = Object.create(null);
 		let firstNode = null;
+		let firstProvider = null;
 		let changed = false;
 
 		uci.sections(uciconfig, 'node', (section) => {
@@ -103,14 +105,23 @@ return baseclass.extend({
 			firstNode ??= section['.name'];
 		});
 
-		function reconcileList(option) {
+		uci.sections(uciconfig, 'provider', (section) => {
+			if (section.enabled === '0' || !['local', 'remote'].includes(section.type))
+				return;
+			if (section.type === 'local' ? !section.path : !section.url)
+				return;
+			providers[section['.name']] = true;
+			firstProvider ??= section['.name'];
+		});
+
+		function reconcileList(option, allowed) {
 			const current = uci.get(uciconfig, 'config', option);
 			const normalized = Array.isArray(current) ? current : (current ? [ current ] : []);
 			const seen = Object.create(null);
-			const filtered = normalized.filter((node) => {
-				if (!node || seen[node] || !available[node])
+			const filtered = normalized.filter((id) => {
+				if (!id || seen[id] || !allowed[id])
 					return false;
-				seen[node] = true;
+				seen[id] = true;
 				return true;
 			});
 
@@ -122,24 +133,30 @@ return baseclass.extend({
 			return filtered;
 		}
 
-		const mainNodes = reconcileList('main_urltest_nodes');
+		const useAll = (option) => uci.get(uciconfig, 'config', option) === '1';
+
+		const mainNodes = reconcileList('main_urltest_nodes', available);
+		const mainProviders = reconcileList('main_urltest_providers', providers);
+		const mainUseAll = useAll('main_urltest_use_all_providers');
 		const mainNode = uci.get(uciconfig, 'config', 'main_node');
-		if (mainNode === 'urltest' && !mainNodes.length) {
-			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
+		if (mainNode === 'urltest' && !mainNodes.length && !mainProviders.length && !mainUseAll) {
+			uci.set(uciconfig, 'config', 'main_node', firstNode || firstProvider || 'nil');
 			changed = true;
 		}
-		else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' && !available[mainNode]) {
-			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
+		else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' && !available[mainNode] && !providers[mainNode]) {
+			uci.set(uciconfig, 'config', 'main_node', firstNode || firstProvider || 'nil');
 			changed = true;
 		}
 
-		const mainUdpNodes = reconcileList('main_udp_urltest_nodes');
+		const mainUdpNodes = reconcileList('main_udp_urltest_nodes', available);
+		const mainUdpProviders = reconcileList('main_udp_urltest_providers', providers);
+		const mainUdpUseAll = useAll('main_udp_urltest_use_all_providers');
 		const mainUdpNode = uci.get(uciconfig, 'config', 'main_udp_node');
-		if (mainUdpNode === 'urltest' && !mainUdpNodes.length) {
+		if (mainUdpNode === 'urltest' && !mainUdpNodes.length && !mainUdpProviders.length && !mainUdpUseAll) {
 			uci.set(uciconfig, 'config', 'main_udp_node', 'same');
 			changed = true;
 		}
-		else if (mainUdpNode && mainUdpNode !== 'nil' && mainUdpNode !== 'same' && mainUdpNode !== 'urltest' && !available[mainUdpNode]) {
+		else if (mainUdpNode && mainUdpNode !== 'nil' && mainUdpNode !== 'same' && mainUdpNode !== 'urltest' && !available[mainUdpNode] && !providers[mainUdpNode]) {
 			uci.set(uciconfig, 'config', 'main_udp_node', 'same');
 			changed = true;
 		}

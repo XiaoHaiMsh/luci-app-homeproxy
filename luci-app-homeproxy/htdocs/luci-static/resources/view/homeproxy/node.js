@@ -518,16 +518,22 @@ function renderNodeSettings(section, data, features, main_node) {
 		o.value('wireguard', _('WireGuard'));
 	o.value('vless', _('VLESS'));
 	o.value('vmess', _('VMess'));
+	o.value('link', _('Share link (parser)'));
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'link', _('Share link'),
+		_('A single vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://, tuic:// or anytls:// share link. The link is parsed natively by sing-box at startup instead of expanding every field here.'));
+	o.depends('type', 'link');
 	o.rmempty = false;
 
 	o = s.option(form.Value, 'address', _('Address'));
 	o.datatype = 'host';
-	o.depends({'type': 'direct', '!reverse': true});
+	o.depends({'type': /^(direct|link)$/, '!reverse': true});
 	o.rmempty = false;
 
 	o = s.option(form.Value, 'port', _('Port'));
 	o.datatype = 'port';
-	o.depends({'type': 'direct', '!reverse': true});
+	o.depends({'type': /^(direct|link)$/, '!reverse': true});
 	o.rmempty = false;
 
 	o = s.option(form.Value, 'username', _('Username'));
@@ -1583,6 +1589,86 @@ function renderNodeSettings(section, data, features, main_node) {
 	return s;
 }
 
+function renderProviderSettings(section, data, features) {
+	let s = section, o;
+	s.rowcolors = true;
+	s.sortable = true;
+	s.nodescriptions = true;
+	s.modaltitle = L.bind(hp.loadModalTitle, this, _('Provider'), _('Add a provider'), data[0]);
+	s.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
+
+	o = s.option(form.Flag, 'enabled', _('Enable'));
+	o.default = o.enabled;
+	o.rmempty = false;
+	o.editable = true;
+
+	o = s.option(form.Value, 'label', _('Label'));
+	o.load = L.bind(hp.loadDefaultLabel, this, data[0]);
+	o.validate = L.bind(hp.validateUniqueValue, this, data[0], 'provider', 'label');
+	o.modalonly = true;
+
+	o = s.option(form.ListValue, 'type', _('Type'));
+	o.value('remote', _('Remote (URL)'));
+	o.value('local', _('Local (file)'));
+	o.default = 'remote';
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'url', _('Subscription URL'),
+		_('A subscription URL (base64 share-link list, SIP008 JSON, or mihomo YAML). The core fetches and parses it natively.'));
+	o.depends('type', 'remote');
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'path', _('Local file path'),
+		_('Absolute path to a subscription file on the router.'));
+	o.depends('type', 'local');
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'user_agent', _('User-Agent'));
+	o.placeholder = 'sing-box';
+	o.depends('type', 'remote');
+
+	o = s.option(form.Value, 'download_detour', _('Download detour'),
+		_('Outbound tag used to download the subscription, e.g. direct-out.'));
+	o.placeholder = 'direct-out';
+	o.depends('type', 'remote');
+
+	o = s.option(form.Value, 'update_interval', _('Update interval'),
+		_('Go duration string, e.g. 30m, 1h.'));
+	o.placeholder = '30m';
+	o.depends('type', 'remote');
+
+	o = s.option(form.Value, 'include', _('Include (regex)'),
+		_('Only keep provider outbounds whose tag matches this regular expression.'));
+	o.depends('type', 'remote');
+
+	o = s.option(form.Value, 'exclude', _('Exclude (regex)'),
+		_('Drop provider outbounds whose tag matches this regular expression.'));
+	o.depends('type', 'remote');
+
+	o = s.option(form.Flag, 'remove_emojis', _('Remove emojis'));
+	o.rmempty = false;
+
+	o = s.option(form.Flag, 'health_check_enabled', _('Enable health check'),
+		_('Periodically health-check outbounds provided by this subscription.'));
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'health_check_url', _('Health check URL'));
+	o.placeholder = 'https://www.gstatic.com/generate_204';
+	o.depends('health_check_enabled', '1');
+
+	o = s.option(form.Value, 'health_check_interval', _('Health check interval'),
+		_('Go duration string, e.g. 3m.'));
+	o.placeholder = '3m';
+	o.depends('health_check_enabled', '1');
+
+	o = s.option(form.Value, 'health_check_timeout', _('Health check timeout'),
+		_('Go duration string, e.g. 5s.'));
+	o.placeholder = '5s';
+	o.depends('health_check_enabled', '1');
+
+	return s;
+}
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -1871,6 +1957,13 @@ return view.extend({
 
 			return this.map.save(null, true);
 		}
+
+		s.tab('providers', _('Providers'),
+			_('Subscription providers handled natively by sing-box: each provider is fetched and parsed by the core, and its outbounds can be pulled into any selector/URLTest group. Use "Main node" on the client page to select a provider.'));
+		o = s.taboption('providers', form.SectionValue, '_providers', form.GridSection, 'provider');
+		ss = renderProviderSettings(o.subsection, data, features);
+		ss.addremove = true;
+		ss.anonymous = true;
 
 		return m.render();
 	}

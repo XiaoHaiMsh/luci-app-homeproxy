@@ -177,6 +177,22 @@ export function reconcileUrltestNodes(uci, config, logger) {
 			logger(message);
 	};
 
+	const is_valid_node = (id) => uci.get(config, id) === 'node';
+
+	/* A provider only counts as a usable group member when it is enabled,
+	 * has a recognised type and carries the source it needs (path for local,
+	 * url for remote) - the same gate the config generator applies. */
+	const is_valid_provider = (id) => {
+		if (uci.get(config, id) !== 'provider')
+			return false;
+		const type = uci.get(config, id, 'type');
+		if (isEmpty(type) || !(type in ['local', 'remote']))
+			return false;
+		if (uci.get(config, id, 'enabled') === '0')
+			return false;
+		return (type === 'local') ? !isEmpty(uci.get(config, id, 'path')) : !isEmpty(uci.get(config, id, 'url'));
+	};
+
 	function reconcileList(section, option) {
 		const current = uci.get(config, section, option);
 		const normalized = normalizeList(current);
@@ -196,23 +212,61 @@ export function reconcileUrltestNodes(uci, config, logger) {
 		return available;
 	};
 
-	function fallbackFirstNode() {
-		return uci.get_first(config, 'node') || 'nil';
+	function reconcileProviderList(section, option) {
+		const current = uci.get(config, section, option);
+		const normalized = normalizeList(current);
+		const available = [];
+		for (let id in normalized) {
+			if (is_valid_provider(id))
+				push(available, id);
+			else {
+				removed++;
+				log(sprintf('Provider %s is gone, removing it from %s.%s.', id, section, option));
+			}
+		}
+
+		if (sprintf('%J', normalized) !== sprintf('%J', available)) {
+			if (length(available))
+				uci.set(config, section, option, available);
+			else
+				uci.delete(config, section, option);
+			changed = true;
+		}
+
+		return available;
+	};
+
+	function use_all(option) {
+		return uci.get(config, 'config', option) === '1';
+	};
+
+	function first_valid_provider() {
+		let result = null;
+		uci.foreach(config, 'provider', (cfg) => {
+			if (!result && is_valid_provider(cfg['.name']))
+				result = cfg['.name'];
+		});
+		return result;
+	};
+
+	function fallbackFirstTarget() {
+		return uci.get_first(config, 'node') || first_valid_provider() || 'nil';
 	};
 
 	const main_node = uci.get(config, 'config', 'main_node') || 'nil';
 	if (main_node === 'urltest') {
 		const mainNodes = reconcileList('config', 'main_urltest_nodes');
-		if (!length(mainNodes)) {
-			const fallback = fallbackFirstNode();
+		const mainProviders = reconcileProviderList('config', 'main_urltest_providers');
+		if (!length(mainNodes) && !length(mainProviders) && !use_all('main_urltest_use_all_providers')) {
+			const fallback = fallbackFirstTarget();
 			uci.set(config, 'config', 'main_node', fallback);
 			changed = true;
 			log((fallback === 'nil') ?
 				'Main URLTest group is empty; disabling the client.' :
 				sprintf('Main URLTest group is empty; switching main node to %s.', fallback));
 		}
-	} else if (main_node !== 'nil' && uci.get(config, main_node) !== 'node') {
-		const fallback = fallbackFirstNode();
+	} else if (main_node !== 'nil' && !is_valid_node(main_node) && !is_valid_provider(main_node)) {
+		const fallback = fallbackFirstTarget();
 		uci.set(config, 'config', 'main_node', fallback);
 		changed = true;
 		log((fallback === 'nil') ?
@@ -223,12 +277,13 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	const main_udp_node = uci.get(config, 'config', 'main_udp_node') || 'nil';
 	if (main_udp_node === 'urltest') {
 		const mainUdpNodes = reconcileList('config', 'main_udp_urltest_nodes');
-		if (!length(mainUdpNodes)) {
+		const mainUdpProviders = reconcileProviderList('config', 'main_udp_urltest_providers');
+		if (!length(mainUdpNodes) && !length(mainUdpProviders) && !use_all('main_udp_urltest_use_all_providers')) {
 			uci.set(config, 'config', 'main_udp_node', 'same');
 			changed = true;
 			log('Main UDP URLTest group is empty; falling back to using the main node for UDP.');
 		}
-	} else if (main_udp_node !== 'nil' && main_udp_node !== 'same' && uci.get(config, main_udp_node) !== 'node') {
+	} else if (main_udp_node !== 'nil' && main_udp_node !== 'same' && !is_valid_node(main_udp_node) && !is_valid_provider(main_udp_node)) {
 		uci.set(config, 'config', 'main_udp_node', 'same');
 		changed = true;
 		log('Main UDP node is gone; falling back to using the main node for UDP.');

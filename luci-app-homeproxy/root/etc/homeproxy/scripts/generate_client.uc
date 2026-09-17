@@ -75,6 +75,108 @@ function node_out_tag(id) {
 	return node_outbound_tags[id] || `cfg-${id}-out`;
 }
 
+/* Providers (sing-box-extended) are top-level subscription sources that the
+ * core fetches/parses natively. Each provider exposes a list of outbounds that
+ * any selector/urltest group can pull in via "providers"/"use_all_providers". */
+const uciprovider = 'provider';
+const provider_tags = {};
+const provider_label_registry = createNodeLabelRegistry();
+uci.foreach(uciconfig, uciprovider, (cfg) => {
+	if (cfg.enabled === '0' || isEmpty(cfg.type) || !(cfg.type in ['local', 'remote']))
+		return;
+
+	/* A provider without its required source (path for local, url for remote)
+	 * is not usable; skip it so it never ends up referenced by a group. */
+	if ((cfg.type === 'local') ? isEmpty(cfg.path) : isEmpty(cfg.url))
+		return;
+
+	let label = trim(cfg.label ?? '');
+	if (!isEmpty(label))
+		label = replace(label, /[\r\n\t]+/g, ' ');
+
+	provider_tags[cfg['.name']] = reserveUniqueLabel(
+		provider_label_registry,
+		label,
+		`cfg-${cfg['.name']}-provider`
+	);
+});
+
+function provider_tag(id) {
+	return provider_tags[id] || `cfg-${id}-provider`;
+}
+
+function valid_provider_list(list) {
+	let result = [];
+	for (let id in normalizeList(list))
+		if (id in provider_tags)
+			push(result, id);
+
+	return result;
+}
+
+function provider_group_refs(providers_option, use_all_option) {
+	const tags = map(valid_provider_list(uci.get(uciconfig, ucimain, providers_option)), (id) => provider_tag(id));
+	const use_all = strToBool(uci.get(uciconfig, ucimain, use_all_option));
+
+	return {
+		providers: length(tags) ? tags : null,
+		use_all_providers: (use_all === true) ? true : null,
+		active: (use_all === true) || length(tags)
+	};
+}
+
+function is_provider(id) {
+	return !isEmpty(id) && (id in provider_tags) && (uci.get(uciconfig, id) === 'provider');
+}
+
+/* sing-box provider durations (update_interval / health check interval & timeout)
+ * are Go duration strings ("30s", "5m", "1h"), not plain seconds, so they are
+ * passed through verbatim and only emitted when non-empty. */
+function durationStr(value) {
+	const v = trim(value ?? '');
+	return isEmpty(v) ? null : v;
+}
+
+/* Emit a top-level "providers" entry for one enabled local/remote provider. The
+ * core fetches/parses the subscription natively; homeproxy only translates the
+ * UCI section into sing-box's provider schema. */
+function generate_provider(cfg) {
+	if (type(cfg) !== 'object' || isEmpty(cfg) || isEmpty(cfg.type) || !(cfg.type in ['local', 'remote']))
+		return null;
+
+	const provider = {
+		type: cfg.type,
+		tag: provider_tag(cfg['.name'])
+	};
+
+	if (cfg.type === 'local') {
+		provider.path = cfg.path;
+	} else {
+		provider.url = cfg.url;
+		provider.user_agent = isEmpty(cfg.user_agent) ? null : cfg.user_agent;
+		provider.download_detour = isEmpty(cfg.download_detour) ? null : cfg.download_detour;
+		provider.update_interval = durationStr(cfg.update_interval);
+		/* exclude/include are remote-only filter fields (not part of the local
+		 * provider schema); emitting them on a local provider would trip the
+		 * core's strict JSON decoding. */
+		provider.exclude = isEmpty(cfg.exclude) ? null : cfg.exclude;
+		provider.include = isEmpty(cfg.include) ? null : cfg.include;
+	}
+
+	provider.remove_emojis = strToBool(cfg.remove_emojis);
+
+	if (cfg.health_check_enabled === '1') {
+		provider.health_check = {
+			enabled: true,
+			url: isEmpty(cfg.health_check_url) ? null : cfg.health_check_url,
+			interval: durationStr(cfg.health_check_interval),
+			timeout: durationStr(cfg.health_check_timeout)
+		};
+	}
+
+	return provider;
+}
+
 function first_valid_node() {
 	let result = null;
 	uci.foreach(uciconfig, ucinode, (cfg) => {
@@ -116,9 +218,9 @@ const main_node_setting = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 main_node = main_node_setting;
 main_udp_node = uci.get(uciconfig, ucimain, 'main_udp_node') || 'nil';
 const first_node_id = first_valid_node();
-if (main_node !== 'nil' && main_node !== 'urltest' && !uci.get_all(uciconfig, main_node)?.type)
+if (main_node !== 'nil' && main_node !== 'urltest' && !is_provider(main_node) && uci.get(uciconfig, main_node) !== 'node')
 	main_node = first_node_id || 'nil';
-if (main_udp_node !== 'nil' && main_udp_node !== 'same' && main_udp_node !== 'urltest' && !uci.get_all(uciconfig, main_udp_node)?.type)
+if (main_udp_node !== 'nil' && main_udp_node !== 'same' && main_udp_node !== 'urltest' && !is_provider(main_udp_node) && uci.get(uciconfig, main_udp_node) !== 'node')
 	main_udp_node = first_node_id || 'nil';
 dedicated_udp_node = !isEmpty(main_udp_node) && !(main_udp_node in ['same', main_node]);
 
@@ -307,6 +409,13 @@ function parseHeaderList(list) {
 function generate_outbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
+
+	/* Link Parser (sing-box-extended): a node defined by a single share link
+	 * (vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://,
+	 * tuic://, anytls://). The core parses it at startup via its native
+	 * "parser" outbound instead of homeproxy expanding every field itself. */
+	if (node.type === 'link')
+		return { type: 'parser', tag: node_out_tag(node['.name']), link: node.link };
 
 	const outbound = {
 		type: node.type,
@@ -707,25 +816,42 @@ config.outbounds = [
 	}
 ];
 
+/* Build a selector/urltest group object, folding in any referenced providers so
+ * the core pulls provider outbounds into the group natively. A group may end up
+ * with only providers (empty outbounds), which sing-box-extended accepts via its
+ * built-in "Compatible" placeholder outbound. */
+function group_with_providers(type, tag, outbound_tags, providers_ref, extra) {
+	const group = {
+		type,
+		tag,
+		outbounds: length(outbound_tags) ? outbound_tags : [],
+		...extra
+	};
+	if (providers_ref.active) {
+		group.providers = providers_ref.providers;
+		group.use_all_providers = providers_ref.use_all_providers;
+	}
+	return group;
+}
+
 if (!isEmpty(main_node)) {
 	let urltest_nodes = [];
 
 	if (main_node === 'urltest') {
 		const main_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
+		const main_urltest_providers = provider_group_refs('main_urltest_providers', 'main_urltest_use_all_providers');
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval');
 		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections');
 
-		if (length(main_urltest_nodes)) {
-			push(config.outbounds, {
-				type: 'urltest',
-				tag: 'main-out',
-				outbounds: map(main_urltest_nodes, (k) => node_out_tag(k)),
-				interval: strToTime(main_urltest_interval),
-				tolerance: strToInt(main_urltest_tolerance),
-				idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
-				interrupt_exist_connections: (main_urltest_interrupt === '1') ? true : null,
-			});
+		if (length(main_urltest_nodes) || main_urltest_providers.active) {
+			push(config.outbounds, group_with_providers('urltest', 'main-out',
+				map(main_urltest_nodes, (k) => node_out_tag(k)), main_urltest_providers, {
+					interval: strToTime(main_urltest_interval),
+					tolerance: strToInt(main_urltest_tolerance),
+					idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
+					interrupt_exist_connections: (main_urltest_interrupt === '1') ? true : null,
+				}));
 			urltest_nodes = main_urltest_nodes;
 		} else if (first_node_id) {
 
@@ -739,6 +865,9 @@ if (!isEmpty(main_node)) {
 			}
 			main_node = first_node_id;
 		}
+	} else if (is_provider(main_node)) {
+		push(config.outbounds, group_with_providers('selector', 'main-out',
+			[], { providers: [ provider_tag(main_node) ], use_all_providers: null, active: true }, {}));
 	} else {
 		const main_node_cfg = uci.get_all(uciconfig, main_node) || {};
 		if (main_node_cfg.type === 'wireguard') {
@@ -752,24 +881,26 @@ if (!isEmpty(main_node)) {
 
 	if (main_udp_node === 'urltest') {
 		const main_udp_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
+		const main_udp_urltest_providers = provider_group_refs('main_udp_urltest_providers', 'main_udp_urltest_use_all_providers');
 		const main_udp_urltest_interval = uci.get(uciconfig, ucimain, 'main_udp_urltest_interval');
 		const main_udp_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_udp_urltest_tolerance');
 		const main_udp_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_udp_urltest_interrupt_exist_connections');
 
-		if (length(main_udp_urltest_nodes)) {
-			push(config.outbounds, {
-				type: 'urltest',
-				tag: 'main-udp-out',
-				outbounds: map(main_udp_urltest_nodes, (k) => node_out_tag(k)),
-				interval: strToTime(main_udp_urltest_interval),
-				tolerance: strToInt(main_udp_urltest_tolerance),
-				idle_timeout: (strToInt(main_udp_urltest_interval) > 1800) ? `${main_udp_urltest_interval * 2}s` : null,
-				interrupt_exist_connections: (main_udp_urltest_interrupt === '1') ? true : null,
-			});
+		if (length(main_udp_urltest_nodes) || main_udp_urltest_providers.active) {
+			push(config.outbounds, group_with_providers('urltest', 'main-udp-out',
+				map(main_udp_urltest_nodes, (k) => node_out_tag(k)), main_udp_urltest_providers, {
+					interval: strToTime(main_udp_urltest_interval),
+					tolerance: strToInt(main_udp_urltest_tolerance),
+					idle_timeout: (strToInt(main_udp_urltest_interval) > 1800) ? `${main_udp_urltest_interval * 2}s` : null,
+					interrupt_exist_connections: (main_udp_urltest_interrupt === '1') ? true : null,
+				}));
 			urltest_nodes = [...urltest_nodes, ...filter(main_udp_urltest_nodes, (l) => !~index(urltest_nodes, l))];
 		} else if (main_udp_node !== 'nil' && first_node_id && main_node !== 'nil') {
 			main_udp_node = 'same';
 		}
+	} else if (dedicated_udp_node && is_provider(main_udp_node)) {
+		push(config.outbounds, group_with_providers('selector', 'main-udp-out',
+			[], { providers: [ provider_tag(main_udp_node) ], use_all_providers: null, active: true }, {}));
 	} else if (dedicated_udp_node) {
 		const main_udp_node_cfg = uci.get_all(uciconfig, main_udp_node) || {};
 		if (main_udp_node_cfg.type === 'wireguard') {
@@ -805,6 +936,20 @@ if (!isEmpty(main_node))
 			detour: 'main-out'
 		}
 	];
+
+/* Top-level providers (sing-box-extended): emit one entry per enabled local/
+ * remote provider so the core fetches and parses each subscription natively.
+ * Groups reference them by tag via "providers"/"use_all_providers" above. */
+config.providers = [];
+uci.foreach(uciconfig, uciprovider, (cfg) => {
+	if (!(cfg['.name'] in provider_tags))
+		return;
+	const provider = generate_provider(cfg);
+	if (provider)
+		push(config.providers, provider);
+});
+if (isEmpty(config.providers))
+	config.providers = null;
 
 function parseRoutePorts(value) {
 	const result = { ports: [], ranges: [] };
@@ -1319,7 +1464,7 @@ if (has_remote_ruleset) {
 	};
 }
 
-if (main_node === 'urltest' || main_udp_node === 'urltest') {
+if (main_node === 'urltest' || main_udp_node === 'urltest' || is_provider(main_node) || is_provider(main_udp_node)) {
 	if (!config.experimental)
 		config.experimental = {};
 	config.experimental.clash_api = {

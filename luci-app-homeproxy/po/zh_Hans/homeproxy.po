@@ -3041,3 +3041,99 @@ msgstr "有效端口值"
 msgid "valid uuid"
 msgstr "有效 uuid"
 
+
+msgid "Providers"
+msgstr "订阅提供者"
+
+msgid "Subscription providers handled natively by sing-box: each provider is fetched and parsed by the core, and its outbounds can be pulled into any selector/URLTest group. Use \"Main node\" on the client page to select a provider."
+msgstr "由 sing-box 原生处理的订阅提供者：每个提供者由核心拉取并解析，其出站可被导入到任意 selector/URLTest 分组中。在客户端页面的“主节点”中选择提供者即可使用。"
+
+msgid "Provider"
+msgstr "提供者"
+
+msgid "Add a provider"
+msgstr "添加提供者"
+
+msgid "Remote (URL)"
+msgstr "远程（URL）"
+
+msgid "Local (file)"
+msgstr "本地（文件）"
+
+msgid "Subscription URL"
+msgstr "订阅网址"
+
+msgid "A subscription URL (base64 share-link list, SIP008 JSON, or mihomo YAML). The core fetches and parses it natively."
+msgstr "订阅链接（base64 分享链接列表、SIP008 JSON 或 mihomo YAML）。由核心原生拉取并解析。"
+
+msgid "Local file path"
+msgstr "本地文件路径"
+
+msgid "Absolute path to a subscription file on the router."
+msgstr "路由器上订阅文件的绝对路径。"
+
+msgid "Outbound tag used to download the subscription, e.g. direct-out."
+msgstr "用于下载订阅的出站标签，例如 direct-out。"
+
+msgid "Update interval"
+msgstr "更新间隔"
+
+msgid "Go duration string, e.g. 30m, 1h."
+msgstr "Go 时长字符串，例如 30m、1h。"
+
+msgid "Include (regex)"
+msgstr "包含（正则）"
+
+msgid "Only keep provider outbounds whose tag matches this regular expression."
+msgstr "仅保留标签匹配此正则表达式的提供者出站。"
+
+msgid "Exclude (regex)"
+msgstr "排除（正则）"
+
+msgid "Drop provider outbounds whose tag matches this regular expression."
+msgstr "丢弃标签匹配此正则表达式的提供者出站。"
+
+msgid "Remove emojis"
+msgstr "移除表情符号"
+
+msgid "Enable health check"
+msgstr "启用健康检查"
+
+msgid "Periodically health-check outbounds provided by this subscription."
+msgstr "定期对由该订阅提供的出站进行健康检查。"
+
+msgid "Health check URL"
+msgstr "健康检查网址"
+
+msgid "Health check interval"
+msgstr "健康检查间隔"
+
+msgid "Health check timeout"
+msgstr "健康检查超时"
+
+msgid "Share link (parser)"
+msgstr "分享链接（解析）"
+
+msgid "Share link"
+msgstr "分享链接"
+
+msgid "A single vless://, vmess://, ss://, trojan://, hysteria://, hysteria2://, tuic:// or anytls:// share link. The link is parsed natively by sing-box at startup instead of expanding every field here."
+msgstr "单个 vless://、vmess://、ss://、trojan://、hysteria://、hysteria2://、tuic:// 或 anytls:// 分享链接。链接会在启动时由 sing-box 原生解析，无需在此逐个填写字段。"
+
+msgid "URLTest providers"
+msgstr "URLTest 提供者"
+
+msgid "List of providers to test."
+msgstr "要测试的提供者列表。"
+
+msgid "Use all providers"
+msgstr "使用全部提供者"
+
+msgid "Pull outbounds from every enabled provider into this URLTest group."
+msgstr "将每个已启用提供者的出站导入此 URLTest 分组。"
+
+msgid "Provider: %s"
+msgstr "提供者：%s"
+
+msgid "UDP Provider: %s"
+msgstr "UDP 提供者：%s"
