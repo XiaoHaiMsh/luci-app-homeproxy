@@ -373,18 +373,8 @@ return view.extend({
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_node', 'urltest');
-		o.rmempty = true;
+		o.rmempty = false;
 		o.retain = true;
-		o.validate = function(section_id, value) {
-			if (!section_id || this.section.formvalue(section_id, 'main_node') !== 'urltest')
-				return true;
-
-			let nodes = Array.isArray(value) ? value : (value ? [ value ] : []);
-			if (nodes.length)
-				return true;
-
-			return _('Select at least one URLTest node or provider.');
-		};
 
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
@@ -424,18 +414,8 @@ return view.extend({
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_udp_node', 'urltest');
-		o.rmempty = true;
+		o.rmempty = false;
 		o.retain = true;
-		o.validate = function(section_id, value) {
-			if (!section_id || this.section.formvalue(section_id, 'main_udp_node') !== 'urltest')
-				return true;
-
-			let nodes = Array.isArray(value) ? value : (value ? [ value ] : []);
-			if (nodes.length)
-				return true;
-
-			return _('Select at least one URLTest node or provider.');
-		};
 
 		o = s.taboption('routing', form.Value, 'main_udp_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));

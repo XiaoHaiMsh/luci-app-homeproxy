@@ -1630,6 +1630,11 @@ function renderProviderSettings(section, data, features) {
 	o.rmempty = false;
 	o.depends('type', 'remote');
 	o.modalonly = true;
+	o.validate = function(section_id, value) {
+		if (!value)
+			return _('Expecting: %s').format(_('non-empty value'));
+		return true;
+	};
 
 	o = s.option(form.Value, 'download_detour', _('Download detour'));
 	o.value('direct-out');
@@ -1638,6 +1643,11 @@ function renderProviderSettings(section, data, features) {
 	o.rmempty = false;
 	o.depends('type', 'remote');
 	o.modalonly = true;
+	o.validate = function(section_id, value) {
+		if (!value)
+			return _('Expecting: %s').format(_('non-empty value'));
+		return true;
+	};
 
 	o = s.option(form.Value, 'update_interval', _('Update interval'), _('In minutes.'));
 	o.datatype = 'uinteger';
