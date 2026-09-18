@@ -140,6 +140,118 @@ function noopFeedback() {
 	return new Promise((resolve) => setTimeout(resolve, 400));
 }
 
+/* Providers are a sing-box-extended core feature (see the "provider" config
+ * in adapter/provider): a local file, remote subscription URL, or inline
+ * outbound list that the core itself parses/fetches/watches at runtime,
+ * exposed to selector/urltest groups via "providers"/"use_all_providers"
+ * instead of (or alongside) individually-configured homeproxy nodes. This
+ * first cut supports the "local" and "remote" provider types, which cover
+ * the common "point sing-box at my subscription URL directly" use case;
+ * "inline" isn't exposed here since homeproxy's own per-node UCI sections
+ * already serve that purpose. */
+function renderProviderSettings(section, proxy_nodes) {
+	let s = section, o;
+	s.rowcolors = true;
+	s.sortable = true;
+	s.addremove = true;
+	s.anonymous = true;
+	s.modaltitle = (section_id) => section_id ? _('Edit provider') : _('Add a provider');
+	s.sectiontitle = (section_id) => {
+		let remark = uci.get('homeproxy', section_id, 'remark');
+		return remark || section_id;
+	};
+
+	o = s.option(form.Flag, 'enabled', _('Enabled'));
+	o.default = o.enabled;
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'remark', _('Remark'));
+	o.rmempty = false;
+
+	o = s.option(form.ListValue, 'type', _('Type'));
+	o.value('local', _('Local file'));
+	o.value('remote', _('Remote subscription URL'));
+	o.default = 'remote';
+	o.rmempty = false;
+
+	o = s.option(form.Value, 'path', _('File path'),
+		_('Path to a local subscription file. Supported formats are auto-detected: sing-box JSON, ' +
+			'Clash YAML, SIP008, or a plain list of share links.'));
+	o.depends('type', 'local');
+	o.rmempty = false;
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'url', _('Subscription URL'));
+	o.datatype = 'string';
+	o.depends('type', 'remote');
+	o.rmempty = false;
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'user_agent', _('User-Agent'));
+	o.depends('type', 'remote');
+	o.placeholder = 'sing-box';
+	o.modalonly = true;
+
+	o = s.option(form.DynamicList, 'headers', _('Custom headers'),
+		_('One "Key: Value" pair per line. Some subscription panels require device-identification ' +
+			'headers to return the real server list.'));
+	o.depends('type', 'remote');
+	o.modalonly = true;
+
+	o = s.option(form.ListValue, 'download_detour', _('Download detour'),
+		_('Fetch the subscription through this outbound instead of the default route. Leave as ' +
+			'"Direct" to avoid a circular dependency on the proxy this subscription may itself provide.'));
+	o.value('direct', _('Direct'));
+	for (let i in proxy_nodes)
+		o.value(i, proxy_nodes[i]);
+	o.default = 'direct';
+	o.depends('type', 'remote');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'update_interval', _('Update interval'),
+		_('In seconds. Minimum is 60 (1 minute); homeproxy default if left blank is the core default (24h).'));
+	o.datatype = 'uinteger';
+	o.placeholder = '86400';
+	o.depends('type', 'remote');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'include', _('Include filter'),
+		_('Regular expression; nodes whose name matches are kept.'));
+	o.depends('type', 'remote');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'exclude', _('Exclude filter'),
+		_('Regular expression; nodes whose name matches are dropped. Takes priority over the include filter.'));
+	o.depends('type', 'remote');
+	o.modalonly = true;
+
+	o = s.option(form.Flag, 'remove_emojis', _('Remove emojis'),
+		_('Strip emoji flags from proxy names.'));
+	o.modalonly = true;
+
+	o = s.option(form.Flag, 'health_check_enabled', _('Health check'));
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'health_check_url', _('Health check URL'));
+	o.placeholder = 'https://www.gstatic.com/generate_204';
+	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'health_check_interval', _('Health check interval'), _('In seconds.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '300';
+	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'health_check_timeout', _('Health check timeout'), _('In seconds.'));
+	o.datatype = 'uinteger';
+	o.placeholder = '5';
+	o.depends('health_check_enabled', '1');
+	o.modalonly = true;
+
+	return s;
+}
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -163,6 +275,12 @@ return view.extend({
 			proxy_nodes[res['.name']] =
 				String.format('[%s] %s', res.type, res.label || ((stubValidator.apply('ip6addr', nodeaddr) ?
 					String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport));
+		});
+
+		let proxy_providers = {};
+		uci.sections(data[0], 'provider', (res) => {
+			proxy_providers[res['.name']] =
+				String.format('[%s] %s', res.type, res.remark || res.path || res.url || res['.name']);
 		});
 
 		function formatDelay(delay) {
@@ -326,6 +444,7 @@ return view.extend({
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
 
 		s.tab('routing', _('Routing Settings'));
+		s.tab('providers', _('Providers (sing-box-extended)'));
 		s.tab('dns', _('DNS Settings'));
 		s.tab('dashboard', _('Dashboard'));
 
@@ -343,6 +462,19 @@ return view.extend({
 			o.value(i, proxy_nodes[i]);
 		o.depends('main_node', 'urltest');
 		o.rmempty = false;
+		o.retain = true;
+
+		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_providers', _('URLTest providers'),
+			_('Additionally pull member outbounds from these providers (see the "Providers" tab). ' +
+				'Requires sing-box-extended.'));
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
+		o.depends('main_node', 'urltest');
+		o.retain = true;
+
+		o = s.taboption('routing', form.Flag, 'main_urltest_use_all_providers', _('Use all providers'),
+			_('Use the member outbounds of every configured provider, in addition to the lists above.'));
+		o.depends('main_node', 'urltest');
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
@@ -382,6 +514,19 @@ return view.extend({
 		o.rmempty = false;
 		o.retain = true;
 
+		o = s.taboption('routing', hp.CBIStaticList, 'main_udp_urltest_providers', _('URLTest providers'),
+			_('Additionally pull member outbounds from these providers (see the "Providers" tab). ' +
+				'Requires sing-box-extended.'));
+		for (let i in proxy_providers)
+			o.value(i, proxy_providers[i]);
+		o.depends('main_udp_node', 'urltest');
+		o.retain = true;
+
+		o = s.taboption('routing', form.Flag, 'main_udp_urltest_use_all_providers', _('Use all providers'),
+			_('Use the member outbounds of every configured provider, in addition to the lists above.'));
+		o.depends('main_udp_node', 'urltest');
+		o.retain = true;
+
 		o = s.taboption('routing', form.Value, 'main_udp_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
@@ -401,6 +546,14 @@ return view.extend({
 		o.rmempty = false;
 		o.depends('main_udp_node', 'urltest');
 		o.retain = true;
+
+		o = s.taboption('providers', form.SectionValue, '_provider', form.GridSection, 'provider');
+		o.title = _('Providers');
+		o.description = _('sing-box-extended providers: a local file or remote subscription URL parsed, ' +
+			'fetched and hot-reloaded by the core itself, instead of homeproxy periodically rewriting ' +
+			'individual node sections. Reference a provider from "URLTest providers" above (or from a ' +
+			'proxy rule\'s URLTest group) to use its member outbounds.');
+		renderProviderSettings(o.subsection, proxy_nodes);
 
 		o = s.taboption('dns', form.SectionValue, '_dns', form.NamedSection, 'config', 'homeproxy');
 		ss = o.subsection;
@@ -736,6 +889,19 @@ return view.extend({
 			so.value(i, proxy_nodes[i]);
 		so.depends('node', 'urltest');
 		so.rmempty = false;
+		so.modalonly = true;
+		so.retain = true;
+
+		so = ss.option(hp.CBIStaticList, 'urltest_providers', _('URLTest providers'),
+			_('Additionally pull member outbounds from these providers. Requires sing-box-extended.'));
+		for (let i in proxy_providers)
+			so.value(i, proxy_providers[i]);
+		so.depends('node', 'urltest');
+		so.modalonly = true;
+		so.retain = true;
+
+		so = ss.option(form.Flag, 'urltest_use_all_providers', _('Use all providers'));
+		so.depends('node', 'urltest');
 		so.modalonly = true;
 		so.retain = true;
 

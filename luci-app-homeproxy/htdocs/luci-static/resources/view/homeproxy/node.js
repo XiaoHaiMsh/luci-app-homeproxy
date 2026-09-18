@@ -518,17 +518,58 @@ function renderNodeSettings(section, data, features, main_node) {
 		o.value('wireguard', _('WireGuard'));
 	o.value('vless', _('VLESS'));
 	o.value('vmess', _('VMess'));
+	o.value('parser', _('Link Parser (native, sing-box-extended)'));
 	o.rmempty = false;
+
+	const address_port_types = [
+		'anytls', 'http', 'hysteria', 'hysteria2', 'shadowsocks', 'shadowtls',
+		'socks', 'ssh', 'trojan', 'tuic', 'wireguard', 'vless', 'vmess'
+	];
 
 	o = s.option(form.Value, 'address', _('Address'));
 	o.datatype = 'host';
-	o.depends({'type': 'direct', '!reverse': true});
+	for (let t of address_port_types)
+		o.depends('type', t);
 	o.rmempty = false;
+	o.validate = function(section_id, value) {
+		let type = this.section.formvalue(section_id, 'type');
+		if (address_port_types.includes(type) && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+		return true;
+	}
 
 	o = s.option(form.Value, 'port', _('Port'));
 	o.datatype = 'port';
-	o.depends({'type': 'direct', '!reverse': true});
+	for (let t of address_port_types)
+		o.depends('type', t);
 	o.rmempty = false;
+	o.validate = function(section_id, value) {
+		let type = this.section.formvalue(section_id, 'type');
+		if (address_port_types.includes(type) && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+		return true;
+	}
+
+	o = s.option(form.TextValue, 'parser_link', _('Share link'),
+		_('Paste a single share link (e.g. <code>vless://</code>, <code>vmess://</code>, <code>trojan://</code>, ' +
+			'<code>ss://</code>, <code>hysteria://</code>, <code>hysteria2://</code>, <code>tuic://</code>, ' +
+			'<code>anytls://</code>). The link is stored as-is and parsed by sing-box-extended itself at ' +
+			'startup (via the core\'s native "parser" outbound), so there is no need for this UI to understand ' +
+			'the link format - it will keep working even if the provider adds new/changed parameters.'));
+	o.depends('type', 'parser');
+	o.rows = 3;
+	o.rmempty = false;
+	o.validate = function(section_id, value) {
+		let type = this.section.formvalue(section_id, 'type');
+		if (type === 'parser') {
+			if (!value)
+				return _('Expecting: %s').format(_('non-empty value'));
+			if (!value.match(/^[a-z0-9.+-]+:\/\//i))
+				return _('Expecting: %s').format(_('a valid share link (protocol://...)'));
+		}
+		return true;
+	}
+	o.modalonly = true;
 
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');
