@@ -25,6 +25,7 @@ const uciinfra = 'infra',
 
 const ucinode = 'node';
 const uciapprule = 'app_rule';
+const uciprovider = 'provider';
 
 const app_rule_urls = {
 	youtube: {
@@ -75,6 +76,19 @@ function node_out_tag(id) {
 	return node_outbound_tags[id] || `cfg-${id}-out`;
 }
 
+/* Providers are a sing-box-extended core feature: unlike homeproxy "nodes"
+ * (which are individually mapped to one outbound each by generate_outbound()),
+ * a provider is registered once and the core itself parses/fetches/watches
+ * its member outbounds at runtime (local file, remote subscription URL, or
+ * inline list). Groups (selector/urltest) can then pull members from one or
+ * more providers via "providers"/"use_all_providers" instead of (or in
+ * addition to) listing individual homeproxy node outbounds. Tag it with a
+ * fixed, collision-safe prefix since - unlike nodes - providers have no
+ * pre-existing unique-label registry of their own. */
+function provider_tag(id) {
+	return `hp-provider-${id}`;
+}
+
 function first_valid_node() {
 	let result = null;
 	uci.foreach(uciconfig, ucinode, (cfg) => {
@@ -88,6 +102,16 @@ function valid_node_list(list) {
 	let result = [];
 	for (let id in list) {
 		if (uci.get_all(uciconfig, id)?.type)
+			push(result, id);
+	}
+	return result;
+}
+
+function valid_provider_list(list) {
+	let result = [];
+	for (let id in list) {
+		const cfg = uci.get_all(uciconfig, id);
+		if (cfg?.type && cfg.enabled !== '0')
 			push(result, id);
 	}
 	return result;
@@ -304,6 +328,84 @@ function parseHeaderList(list) {
 	return length(keys(headers)) ? headers : null;
 }
 
+/* Same "Key: Value" per-line UI convention as parseHeaderList(), but remote
+ * providers use sing-box's badoption.HTTPHeader (map[string][]string, like
+ * net/http.Header) rather than a flat map[string]string, so every value is
+ * wrapped in a single-element array. */
+function parseProviderHeaderList(list) {
+	if (isEmpty(list))
+		return null;
+
+	let headers = {};
+	for (let line in list) {
+		let pos = index(line, ':');
+		if (pos < 0)
+			continue;
+
+		let key = trim(substr(line, 0, pos));
+		let val = trim(substr(line, pos + 1));
+		if (!isEmpty(key)) {
+			if (!headers[key])
+				headers[key] = [];
+			push(headers[key], val);
+		}
+	}
+
+	return length(keys(headers)) ? headers : null;
+}
+
+function generate_providers() {
+	const providers = [];
+
+	uci.foreach(uciconfig, uciprovider, (cfg) => {
+		if (cfg.enabled === '0')
+			return;
+
+		const tag = provider_tag(cfg['.name']);
+
+		const health_check = (cfg.health_check_enabled === '1') ? {
+			enabled: true,
+			url: cfg.health_check_url,
+			interval: strToTime(cfg.health_check_interval),
+			timeout: strToTime(cfg.health_check_timeout)
+		} : null;
+
+		/* override_dialer_options is intentionally not exposed in the UI
+		 * yet (it accepts the full DialerOptions struct) - keeping this
+		 * feature's first cut to the fields that map cleanly onto simple
+		 * UCI options. */
+		const common = {
+			remove_emojis: strToBool(cfg.remove_emojis),
+			health_check: health_check
+		};
+
+		if (cfg.type === 'local') {
+			push(providers, {
+				type: 'local',
+				tag: tag,
+				path: cfg.path,
+				...common
+			});
+		} else if (cfg.type === 'remote') {
+			push(providers, {
+				type: 'remote',
+				tag: tag,
+				url: cfg.url,
+				user_agent: cfg.user_agent,
+				headers: parseProviderHeaderList(cfg.headers),
+				download_detour: isEmpty(cfg.download_detour) ? null :
+					((cfg.download_detour === 'direct') ? 'direct-out' : node_out_tag(cfg.download_detour)),
+				update_interval: strToTime(cfg.update_interval),
+				exclude: cfg.exclude,
+				include: cfg.include,
+				...common
+			});
+		}
+	});
+
+	return providers;
+}
+
 function generate_outbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
@@ -311,6 +413,12 @@ function generate_outbound(node) {
 	const outbound = {
 		type: node.type,
 		tag: node_out_tag(node['.name']),
+		/* "parser" is a sing-box-extended native outbound: it takes a raw
+		 * share link and re-parses it into a concrete outbound at startup,
+		 * so none of the manually-mapped protocol fields below apply to it -
+		 * only the link string plus the plain DialerOptions fields
+		 * (tcp_fast_open/tcp_multi_path/udp_fragment at the bottom) do. */
+		link: (node.type === 'parser') ? node.parser_link : null,
 		server: node.address,
 		server_port: strToInt(node.port),
 		server_ports: node.hysteria_hopping_port,
@@ -695,6 +803,7 @@ if (match(proxy_mode, /tun/))
 	});
 
 config.endpoints = [];
+config.providers = generate_providers();
 
 config.outbounds = [
 	{
@@ -712,15 +821,19 @@ if (!isEmpty(main_node)) {
 
 	if (main_node === 'urltest') {
 		const main_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_urltest_nodes') || []);
+		const main_urltest_providers = valid_provider_list(uci.get(uciconfig, ucimain, 'main_urltest_providers') || []);
+		const main_urltest_use_all_providers = uci.get(uciconfig, ucimain, 'main_urltest_use_all_providers') === '1';
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval');
 		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections');
 
-		if (length(main_urltest_nodes)) {
+		if (length(main_urltest_nodes) || length(main_urltest_providers) || main_urltest_use_all_providers) {
 			push(config.outbounds, {
 				type: 'urltest',
 				tag: 'main-out',
-				outbounds: map(main_urltest_nodes, (k) => node_out_tag(k)),
+				outbounds: length(main_urltest_nodes) ? map(main_urltest_nodes, (k) => node_out_tag(k)) : null,
+				providers: length(main_urltest_providers) ? map(main_urltest_providers, (k) => provider_tag(k)) : null,
+				use_all_providers: main_urltest_use_all_providers ? true : null,
 				interval: strToTime(main_urltest_interval),
 				tolerance: strToInt(main_urltest_tolerance),
 				idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
@@ -752,15 +865,19 @@ if (!isEmpty(main_node)) {
 
 	if (main_udp_node === 'urltest') {
 		const main_udp_urltest_nodes = valid_node_list(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes') || []);
+		const main_udp_urltest_providers = valid_provider_list(uci.get(uciconfig, ucimain, 'main_udp_urltest_providers') || []);
+		const main_udp_urltest_use_all_providers = uci.get(uciconfig, ucimain, 'main_udp_urltest_use_all_providers') === '1';
 		const main_udp_urltest_interval = uci.get(uciconfig, ucimain, 'main_udp_urltest_interval');
 		const main_udp_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_udp_urltest_tolerance');
 		const main_udp_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_udp_urltest_interrupt_exist_connections');
 
-		if (length(main_udp_urltest_nodes)) {
+		if (length(main_udp_urltest_nodes) || length(main_udp_urltest_providers) || main_udp_urltest_use_all_providers) {
 			push(config.outbounds, {
 				type: 'urltest',
 				tag: 'main-udp-out',
-				outbounds: map(main_udp_urltest_nodes, (k) => node_out_tag(k)),
+				outbounds: length(main_udp_urltest_nodes) ? map(main_udp_urltest_nodes, (k) => node_out_tag(k)) : null,
+				providers: length(main_udp_urltest_providers) ? map(main_udp_urltest_providers, (k) => provider_tag(k)) : null,
+				use_all_providers: main_udp_urltest_use_all_providers ? true : null,
 				interval: strToTime(main_udp_urltest_interval),
 				tolerance: strToInt(main_udp_urltest_tolerance),
 				idle_timeout: (strToInt(main_udp_urltest_interval) > 1800) ? `${main_udp_urltest_interval * 2}s` : null,
@@ -1039,13 +1156,17 @@ if (!isEmpty(main_node)) {
 				effective_outbound = 'block-out';
 			} else if (node === 'urltest') {
 				const rule_urltest_nodes = valid_node_list(cfg.urltest_nodes || []);
-				if (length(rule_urltest_nodes)) {
+				const rule_urltest_providers = valid_provider_list(cfg.urltest_providers || []);
+				const rule_urltest_use_all_providers = cfg.urltest_use_all_providers === '1';
+				if (length(rule_urltest_nodes) || length(rule_urltest_providers) || rule_urltest_use_all_providers) {
 					effective_outbound = 'app-' + rule_label + '-out';
 					if (!has_tag(effective_outbound)) {
 						push(config.outbounds, {
 							type: 'urltest',
 							tag: effective_outbound,
-							outbounds: map(rule_urltest_nodes, (k) => node_out_tag(k)),
+							outbounds: length(rule_urltest_nodes) ? map(rule_urltest_nodes, (k) => node_out_tag(k)) : null,
+							providers: length(rule_urltest_providers) ? map(rule_urltest_providers, (k) => provider_tag(k)) : null,
+							use_all_providers: rule_urltest_use_all_providers ? true : null,
 							interval: strToTime(cfg.urltest_interval || '120'),
 							tolerance: strToInt(cfg.urltest_tolerance || '40'),
 							idle_timeout: (strToInt(cfg.urltest_interval || '120') > 1800) ? `${(cfg.urltest_interval || '120') * 2}s` : null,
