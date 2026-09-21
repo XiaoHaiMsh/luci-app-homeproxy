@@ -1733,7 +1733,7 @@ return view.extend({
 		s.tab('subscription', _('Subscriptions'));
 
 		o = s.taboption('subscription', form.Flag, 'auto_update', _('Auto update'),
-			_('Auto update subscriptions and geodata.'));
+			_('Auto update subscriptions.'));
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.ListValue, 'auto_update_time', _('Update time'));
