@@ -199,7 +199,7 @@ msgid "Auto update"
 msgstr "自动更新"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1520
-msgid "Auto update subscriptions and geodata."
+msgid "Auto update subscriptions."
 msgstr "自动更新订阅"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:723
