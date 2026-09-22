@@ -145,24 +145,17 @@ function callCoreUpdateStart(channel) {
 function callCoreUpdateStatus() {
 	return rpc.declare({ object: 'luci.homeproxy', method: 'core_update_status', expect: { '': {} } })();
 }
-function callCoreRestore() {
-	return rpc.declare({ object: 'luci.homeproxy', method: 'core_restore', expect: { '': {} } })();
-}
 
 function buildCoreContext() {
 	const vendorEl = E('strong', { 'style': 'color:gray' }, _('Loading...'));
 	const versionEl = E('strong', { 'style': 'color:gray' }, '');
-	const restoreMsgEl = E('span', { 'style': 'margin-left:8px; font-size:0.9em' }, '');
-	const setRestoreMsg = (txt, color) => { restoreMsgEl.textContent = txt; restoreMsgEl.style.color = color || 'gray'; };
-
-	let restoreBtn;
 
 	let busy = false;
 	const lockables = [];
 	function registerLockable(el) { lockables.push(el); return el; }
 	function setBusy(state) {
 		busy = state;
-		for (let el of lockables) el.disabled = state || (el === restoreBtn && !restoreBtn.__hasBackup);
+		for (let el of lockables) el.disabled = state;
 	}
 
 	const savedChannel = uci.get('homeproxy', 'config', 'core_channel');
@@ -194,10 +187,6 @@ function buildCoreContext() {
 				vendorEl.textContent = _('Not detected');
 				vendorEl.style.color = 'red';
 				versionEl.textContent = '';
-			}
-			if (restoreBtn) {
-				restoreBtn.__hasBackup = !!info.has_backup;
-				restoreBtn.disabled = busy || !info.has_backup;
 			}
 			return info;
 		});
@@ -268,24 +257,6 @@ function buildCoreContext() {
 		return E('div', { 'style': 'cbi-value-field' }, [ checkBtn, remoteEl ]);
 	}
 
-	restoreBtn = registerLockable(E('button', {
-		'class': 'btn cbi-button cbi-button-action',
-		'disabled': true,
-		'click': ui.createHandlerFn(this, async function() {
-			if (busy) return;
-			setBusy(true);
-			setRestoreMsg(_('Restoring firmware-shipped version...'), 'gray');
-			const ret = await L.resolveDefault(callCoreRestore(), {});
-			if (ret.result) {
-				setRestoreMsg(_('Restored successfully'), 'green');
-				await refreshStatus();
-			} else {
-				setRestoreMsg(ret.error || _('Restore failed'), 'red');
-			}
-			setBusy(false);
-		})
-	}, [ _('Restore initial') ]));
-
 	refreshStatus();
 
 	return {
@@ -293,8 +264,7 @@ function buildCoreContext() {
 		versionRow: E('div', { 'style': 'cbi-value-field' }, [ versionEl ]),
 		channelRow: E('div', { 'style': 'cbi-value-field' }, [ channelSelect ]),
 		officialRow: buildUpdateRow('official', _('Update core')),
-		checkRow: buildCheckRow('official'),
-		restoreRow: E('div', { 'style': 'cbi-value-field' }, [ restoreBtn, restoreMsgEl ])
+		checkRow: buildCheckRow('official')
 	};
 }
 
@@ -451,9 +421,6 @@ return view.extend({
 
 		o = s.option(form.DummyValue, '_core_check', _('Version check'));
 		bindCoreRow(o, 'checkRow');
-
-		o = s.option(form.DummyValue, '_core_restore', _('Restore core'));
-		bindCoreRow(o, 'restoreRow');
 
 		o = s.option(form.DummyValue, '_dashboard', _('Dashboard'));
 		o.cfgvalue = L.bind(getDashboardUpdate, this, o);

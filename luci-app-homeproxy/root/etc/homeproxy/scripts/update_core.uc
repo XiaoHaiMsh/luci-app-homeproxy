@@ -10,8 +10,6 @@ const JOBS_DIR = `${RUN_DIR}/jobs`;
 const JOB_NAME = 'core_official';
 
 const SINGBOX_BIN     = '/usr/bin/sing-box';
-const CORE_BACKUP_DIR = `${HP_DIR}/core-backup`;
-const CORE_BACKUP_BIN = `${CORE_BACKUP_DIR}/sing-box.orig`;
 const CORE_REPO       = 'shtorm-7/sing-box-extended';
 
 function job_esc(s) {
@@ -182,11 +180,6 @@ if (exit_code !== 0) {
 }
 
 job_write('running', 'installing', null, version);
-
-if (!access(CORE_BACKUP_BIN) && access(SINGBOX_BIN)) {
-	system(`mkdir -p ${shellQuote(CORE_BACKUP_DIR)}`);
-	system(`cp -f ${shellQuote(SINGBOX_BIN)} ${shellQuote(CORE_BACKUP_BIN)}`);
-}
 
 const extract_dir = '/tmp/singbox-core-extract';
 system(`rm -rf ${shellQuote(extract_dir)}; mkdir -p ${shellQuote(extract_dir)}`);

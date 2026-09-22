@@ -1955,26 +1955,6 @@ msgstr ""
 msgid "Resources management"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:497
-msgid "Restore core"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:302
-msgid "Restore failed"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:306
-msgid "Restore initial"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:299
-msgid "Restored successfully"
-msgstr ""
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:296
-msgid "Restoring firmware-shipped version..."
-msgstr ""
-
 #: htdocs/luci-static/resources/view/homeproxy/server.js:997
 msgid "Reuse address"
 msgstr ""

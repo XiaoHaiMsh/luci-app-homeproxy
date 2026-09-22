@@ -47,28 +47,7 @@ function job_read(name) {
 	}
 }
 
-function core_cache_paths() {
-	let paths = [
-		`${HP_DIR}/cache/core_cache.db`,
-		`${HP_DIR}/cache/cache.db`,
-		`${RUN_DIR}/cache.db`
-	];
-
-	for (let run_conf in [ `${RUN_DIR}/sing-box-c.json` ]) {
-		if (!access(run_conf)) continue;
-		let conf;
-		try { conf = json(readfile(run_conf)); } catch (e) { conf = null; }
-		const p = conf?.experimental?.cache_file?.path;
-		if (p && index(paths, p) < 0)
-			push(paths, p);
-	}
-
-	return paths;
-}
-
 const SINGBOX_BIN      = '/usr/bin/sing-box';
-const CORE_BACKUP_DIR   = `${HP_DIR}/core-backup`;
-const CORE_BACKUP_BIN   = `${CORE_BACKUP_DIR}/sing-box.orig`;
 
 function core_detect_arch() {
 	const os_rel = readfile('/etc/os-release') || '';
@@ -495,8 +474,7 @@ const methods = {
 			return {
 				arch,
 				installed: !!version,
-				version, vendor,
-				has_backup: !!access(CORE_BACKUP_BIN)
+				version, vendor
 			};
 		}
 	},
@@ -539,30 +517,6 @@ const methods = {
 	core_update_status: {
 		call: function() {
 			return job_read('core_official');
-		}
-	},
-
-	core_restore: {
-		call: function() {
-			if (!access(CORE_BACKUP_BIN))
-				return { result: false, error: 'no firmware-shipped backup found' };
-
-			const restore_tmp = `${SINGBOX_BIN}.restore`;
-			system(`rm -f ${shellquote(restore_tmp)}`);
-			const staged = system(`cp -f ${shellquote(CORE_BACKUP_BIN)} ${shellquote(restore_tmp)} && chmod 755 ${shellquote(restore_tmp)}`) === 0;
-			if (!staged || system(`${shellquote(restore_tmp)} version -n >/dev/null 2>&1`, 15000) !== 0) {
-				system(`rm -f ${shellquote(restore_tmp)}`);
-				return { result: false, error: 'backup executable failed validation' };
-			}
-
-			system('/etc/init.d/homeproxy stop >/dev/null 2>&1');
-			const ok = system(`mv -f ${shellquote(restore_tmp)} ${shellquote(SINGBOX_BIN)}`) === 0;
-			if (ok)
-				for (let p in core_cache_paths())
-					system(`rm -f ${shellquote(p)} 2>/dev/null`);
-			system('/etc/init.d/homeproxy start >/dev/null 2>&1');
-
-			return ok ? { result: true } : { result: false, error: 'restore failed' };
 		}
 	},
 

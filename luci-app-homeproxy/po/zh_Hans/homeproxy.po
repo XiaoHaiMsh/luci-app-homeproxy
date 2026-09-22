@@ -1959,26 +1959,6 @@ msgstr "保留字段字节"
 msgid "Resources management"
 msgstr "资源管理"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:497
-msgid "Restore core"
-msgstr "恢复核心"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:302
-msgid "Restore failed"
-msgstr "恢复失败"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:306
-msgid "Restore initial"
-msgstr "恢复初始"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:299
-msgid "Restored successfully"
-msgstr "恢复成功"
-
-#: htdocs/luci-static/resources/view/homeproxy/status.js:296
-msgid "Restoring firmware-shipped version..."
-msgstr "正在恢复初始自带版本..."
-
 #: htdocs/luci-static/resources/view/homeproxy/server.js:997
 msgid "Reuse address"
 msgstr "复用地址"
