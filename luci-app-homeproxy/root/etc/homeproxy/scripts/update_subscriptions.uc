@@ -1,4 +1,4 @@
-#!/usr/bin/ucode -S
+#!/usr/bin/ucode
 
 'use strict';
 
@@ -89,10 +89,6 @@ function bool_to_uci(value) {
 	return null;
 }
 
-/* xhttp's "xmux" connection-multiplexing settings: the same 6 fields are
- * mapped twice in parse_uri() (once for the main xhttp leg, once for the
- * optional download leg), always with an identical camelCase-to-uci-option
- * mapping - only the config-key prefix differs. */
 function apply_xmux(config, prefix, xmux) {
 	if (!xmux)
 		return;
@@ -955,12 +951,6 @@ function parse_uri(uri) {
 				config.xhttp_path = params.path ? urldecode(params.path) : null;
 				config.xhttp_mode = params.mode || null;
 
-				/* Xray/sing-box-extended share links carry the extended obfuscation
-				 * fields (padding/session/seq/uplink/xmux) as a JSON blob in the
-				 * "extra" query param instead of individual query params. Without
-				 * parsing it, a node that relies on non-default padding/obfuscation
-				 * silently imports with only host/path/mode and none of the settings
-				 * that make it actually connect. */
 				let xhttp_extra = {};
 				if (params.extra) {
 					try {
