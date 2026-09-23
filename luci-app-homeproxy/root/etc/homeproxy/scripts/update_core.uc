@@ -14,10 +14,6 @@ const JOB_NAME = 'core_official';
 const SINGBOX_BIN     = '/usr/bin/sing-box';
 const CORE_REPO       = CORE_REPO_OFFICIAL;
 
-/* Thin wrapper: every call site below reports on this script's one job,
- * so it's more readable to fix the job name here once than to repeat it
- * at each of the 8 call sites. The actual write (JSON layout + atomic
- * rename) lives in the shared jobWrite(), not duplicated here. */
 function job_write(state, stage, message, version) {
 	jobWrite(JOB_NAME, state, stage, message, version);
 }
