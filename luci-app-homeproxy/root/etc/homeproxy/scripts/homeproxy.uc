@@ -1,4 +1,5 @@
-Import { mkstemp, popen, readfile, rename, writefile } from 'fs';
+
+import { mkstemp, popen, readfile, rename, writefile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
 export const HP_DIR = '/etc/homeproxy';
