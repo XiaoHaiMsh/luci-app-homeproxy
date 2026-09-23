@@ -1,4 +1,3 @@
-
 'use strict';
 'require form';
 'require fs';
@@ -295,12 +294,6 @@ function parseShareLink(uri, features) {
 				config.xhttp_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
 				config.xhttp_mode = params.get('mode') || null;
 
-				/* Xray/sing-box-extended share links carry the extended obfuscation
-				 * fields (padding/session/seq/uplink/xmux) as a JSON blob in the
-				 * "extra" query param instead of individual query params. Without
-				 * parsing it, a node that relies on non-default padding/obfuscation
-				 * silently imports with only host/path/mode and none of the settings
-				 * that make it actually connect. */
 				let xhttp_extra = {};
 				if (params.get('extra')) {
 					try {
@@ -1099,10 +1092,6 @@ function renderNodeSettings(section, data, features, main_node) {
 	o.depends('transport', 'xhttp');
 	o.modalonly = true;
 
-	/* Download inherits the base xhttp options struct in full, so every
-	 * obfuscation knob available on the main leg can also be set
-	 * independently for the download leg. Mirrored here so download can be
-	 * fully self-contained when it points at a different server/CDN. */
 	o = s.option(form.DynamicList, 'xhttp_download_headers', _('Download headers'),
 		_('Extra HTTP request/response headers for the download leg, one <code>Key: Value</code> pair per line.'));
 	o.depends('transport', 'xhttp');
