@@ -6,7 +6,7 @@ import { cursor } from 'uci';
 
 import {
 	isEmpty, strToBool, strToInt, strToTime,
-	removeBlankAttrs, atomicWrite, HP_DIR, RUN_DIR
+	removeBlankAttrs, atomicWrite, xhttpPadding, parseHeaderList, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
 const uci = cursor();
@@ -17,36 +17,6 @@ uci.load(uciconfig);
 const uciserver = 'server';
 
 const log_level = uci.get(uciconfig, uciserver, 'log_level') || 'warn';
-
-/* sing-box-extended FATALs with "x_padding_bytes cannot be disabled" whenever xhttp
- * padding resolves to empty: an explicit "0"/"0-0" disables it, and an absent field
- * decodes to "" which counts as disabled too. So the field must always be present
- * and non-empty on every xhttp transport. Coerce any disabling/empty value to a
- * sane default range instead of leaving it empty/omitted. */
-function xhttp_padding(v) {
-	return (isEmpty(v) || v === '0' || v === '0-0') ? '100-1000' : v;
-}
-
-/* Parses a DynamicList of "Key: Value" lines (as used by the xhttp_headers
- * field) into a headers object, or null if there's nothing usable. */
-function parseHeaderList(list) {
-	if (isEmpty(list))
-		return null;
-
-	let headers = {};
-	for (let line in list) {
-		let pos = index(line, ':');
-		if (pos < 0)
-			continue;
-
-		let key = trim(substr(line, 0, pos));
-		let val = trim(substr(line, pos + 1));
-		if (!isEmpty(key))
-			headers[key] = val;
-	}
-
-	return length(keys(headers)) ? headers : null;
-}
 
 
 const config = {};
@@ -182,57 +152,61 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 			} : null
 		} : null,
 
-		transport: !isEmpty(cfg.transport) ? {
-			type: cfg.transport,
-			host: cfg.http_host || cfg.httpupgrade_host || cfg.xhttp_host,
-			path: cfg.http_path || cfg.ws_path || cfg.xhttp_path,
-			headers: cfg.ws_host ? {
-				Host: cfg.ws_host
-			} : ((cfg.transport === 'xhttp') ? parseHeaderList(cfg.xhttp_headers) : null),
-			/* "method" is only a real field on the plain http transport;
-			 * xhttp has no server-side equivalent at all (uplink_http_method
-			 * is client-only - sing-box-extended's dialer picks it, the
-			 * server just reads whatever method the client sent). Emitting
-			 * "method" under xhttp isn't a field the schema recognizes. */
-			method: (cfg.transport === 'http') ? cfg.http_method : null,
-			max_early_data: strToInt(cfg.websocket_early_data),
-			early_data_header_name: cfg.websocket_early_data_header,
-			service_name: cfg.grpc_servicename,
-			idle_timeout: strToTime(cfg.http_idle_timeout),
-			ping_timeout: strToTime(cfg.http_ping_timeout),
+		transport: !isEmpty(cfg.transport) ? (() => {
+			const is_xhttp = (cfg.transport === 'xhttp');
 
-			mode: (cfg.transport === 'xhttp') ? (cfg.xhttp_mode || null) : null,
-			x_padding_bytes: (cfg.transport === 'xhttp') ? xhttp_padding(cfg.xhttp_padding_bytes) : null,
-			no_sse_header: (cfg.transport === 'xhttp') ? strToBool(cfg.xhttp_no_sse_header) : null,
-			sc_max_each_post_bytes: (cfg.transport === 'xhttp') ? strToInt(cfg.xhttp_sc_max_each_post_bytes) : null,
-			sc_max_buffered_posts: (cfg.transport === 'xhttp') ? strToInt(cfg.xhttp_sc_max_buffered_posts) : null,
-			sc_stream_up_server_secs: (cfg.transport === 'xhttp') ? cfg.xhttp_sc_stream_up_server_secs : null,
-			server_max_header_bytes: (cfg.transport === 'xhttp') ? strToInt(cfg.xhttp_server_max_header_bytes) : null,
-			trusted_x_forwarded_for: (cfg.transport === 'xhttp') ? (cfg.xhttp_trusted_x_forwarded_for || null) : null,
-			congestion_controller: (cfg.transport === 'xhttp') ? (cfg.xhttp_congestion_controller || null) : null,
-			cwnd: (cfg.transport === 'xhttp') ? strToInt(cfg.xhttp_cwnd) : null,
+			return {
+				type: cfg.transport,
+				host: cfg.http_host || cfg.httpupgrade_host || cfg.xhttp_host,
+				path: cfg.http_path || cfg.ws_path || cfg.xhttp_path,
+				headers: cfg.ws_host ? {
+					Host: cfg.ws_host
+				} : (is_xhttp ? parseHeaderList(cfg.xhttp_headers) : null),
+				/* "method" is only a real field on the plain http transport;
+				 * xhttp has no server-side equivalent at all (uplink_http_method
+				 * is client-only - sing-box-extended's dialer picks it, the
+				 * server just reads whatever method the client sent). Emitting
+				 * "method" under xhttp isn't a field the schema recognizes. */
+				method: (cfg.transport === 'http') ? cfg.http_method : null,
+				max_early_data: strToInt(cfg.websocket_early_data),
+				early_data_header_name: cfg.websocket_early_data_header,
+				service_name: cfg.grpc_servicename,
+				idle_timeout: strToTime(cfg.http_idle_timeout),
+				ping_timeout: strToTime(cfg.http_ping_timeout),
 
-			x_padding_obfs_mode: (cfg.transport === 'xhttp') ? strToBool(cfg.xhttp_x_padding_obfs_mode) : null,
-			x_padding_placement: (cfg.transport === 'xhttp') ? (cfg.xhttp_x_padding_placement || null) : null,
-			x_padding_key: (cfg.transport === 'xhttp') ? (cfg.xhttp_x_padding_key || null) : null,
-			x_padding_header: (cfg.transport === 'xhttp') ? (cfg.xhttp_x_padding_header || null) : null,
-			x_padding_method: (cfg.transport === 'xhttp') ? (cfg.xhttp_x_padding_method || null) : null,
+				mode: is_xhttp ? (cfg.xhttp_mode || null) : null,
+				x_padding_bytes: is_xhttp ? xhttpPadding(cfg.xhttp_padding_bytes) : null,
+				no_sse_header: is_xhttp ? strToBool(cfg.xhttp_no_sse_header) : null,
+				sc_max_each_post_bytes: is_xhttp ? strToInt(cfg.xhttp_sc_max_each_post_bytes) : null,
+				sc_max_buffered_posts: is_xhttp ? strToInt(cfg.xhttp_sc_max_buffered_posts) : null,
+				sc_stream_up_server_secs: is_xhttp ? cfg.xhttp_sc_stream_up_server_secs : null,
+				server_max_header_bytes: is_xhttp ? strToInt(cfg.xhttp_server_max_header_bytes) : null,
+				trusted_x_forwarded_for: is_xhttp ? (cfg.xhttp_trusted_x_forwarded_for || null) : null,
+				congestion_controller: is_xhttp ? (cfg.xhttp_congestion_controller || null) : null,
+				cwnd: is_xhttp ? strToInt(cfg.xhttp_cwnd) : null,
 
-			session_placement: (cfg.transport === 'xhttp') ? (cfg.xhttp_session_placement || null) : null,
-			session_key: (cfg.transport === 'xhttp') ? (cfg.xhttp_session_key || null) : null,
+				x_padding_obfs_mode: is_xhttp ? strToBool(cfg.xhttp_x_padding_obfs_mode) : null,
+				x_padding_placement: is_xhttp ? (cfg.xhttp_x_padding_placement || null) : null,
+				x_padding_key: is_xhttp ? (cfg.xhttp_x_padding_key || null) : null,
+				x_padding_header: is_xhttp ? (cfg.xhttp_x_padding_header || null) : null,
+				x_padding_method: is_xhttp ? (cfg.xhttp_x_padding_method || null) : null,
 
-			seq_placement: (cfg.transport === 'xhttp') ? (cfg.xhttp_seq_placement || null) : null,
-			seq_key: (cfg.transport === 'xhttp') ? (cfg.xhttp_seq_key || null) : null,
+				session_placement: is_xhttp ? (cfg.xhttp_session_placement || null) : null,
+				session_key: is_xhttp ? (cfg.xhttp_session_key || null) : null,
 
-			uplink_data_placement: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_data_placement || null) : null,
-			uplink_data_key: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_data_key || null) : null,
-			uplink_chunk_size: (cfg.transport === 'xhttp') ? (cfg.xhttp_uplink_chunk_size || null) : null
-			/* "download" is intentionally omitted here: sing-box-extended's
-			 * xhttp server (transport/v2rayxhttp/server.go) never reads
-			 * options.Download - it's a client-only field (used to dial a
-			 * separate stream-down leg, e.g. a different CDN). Emitting it
-			 * on the inbound side would be dead configuration. */
-		} : null
+				seq_placement: is_xhttp ? (cfg.xhttp_seq_placement || null) : null,
+				seq_key: is_xhttp ? (cfg.xhttp_seq_key || null) : null,
+
+				uplink_data_placement: is_xhttp ? (cfg.xhttp_uplink_data_placement || null) : null,
+				uplink_data_key: is_xhttp ? (cfg.xhttp_uplink_data_key || null) : null,
+				uplink_chunk_size: is_xhttp ? (cfg.xhttp_uplink_chunk_size || null) : null
+				/* "download" is intentionally omitted here: sing-box-extended's
+				 * xhttp server (transport/v2rayxhttp/server.go) never reads
+				 * options.Download - it's a client-only field (used to dial a
+				 * separate stream-down leg, e.g. a different CDN). Emitting it
+				 * on the inbound side would be dead configuration. */
+			};
+		})() : null
 	});
 });
 

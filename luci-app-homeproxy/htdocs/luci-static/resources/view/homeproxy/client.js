@@ -140,6 +140,45 @@ function noopFeedback() {
 	return new Promise((resolve) => setTimeout(resolve, 400));
 }
 
+/* Shared by the four DNS server option validators below (dns_server,
+ * china_dns_server, dns_server_fallback, china_dns_server_fallback).
+ * They differ only in three ways, captured by opts:
+ *   - allowWan:  whether the special "wan" value is accepted as-is
+ *   - required:  whether an empty value is an error (vs. simply valid)
+ *   - checkIpv6Support: whether IPv6 addresses are only allowed when the
+ *     section's "ipv6_support" toggle is on, or always allowed
+ * Must be called with `this` bound to the form option (e.g. via .call(this, ...))
+ * so `this.section.formvalue()` works for the ipv6_support lookup. */
+function validateDnsServerAddress(section_id, value, opts) {
+	opts = opts || {};
+
+	if (!section_id || (opts.allowWan && value === 'wan'))
+		return true;
+
+	if (!value)
+		return opts.required ? _('Expecting: %s').format(_('non-empty value')) : true;
+
+	let allowIPv6 = opts.checkIpv6Support ?
+		(this.section.formvalue(section_id, 'ipv6_support') === '1') : true;
+
+	try {
+		let url = new URL(value.replace(/^.*:\/\//, 'http://'));
+		if (stubValidator.apply('hostname', url.hostname))
+			return true;
+		else if (stubValidator.apply('ip4addr', url.hostname))
+			return true;
+		else if (allowIPv6 && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+			return true;
+		else
+			return _('Expecting: %s').format(_('valid DNS server address'));
+	} catch(e) {}
+
+	if (!stubValidator.apply(allowIPv6 ? 'ipaddr' : 'ip4addr', value))
+		return _('Expecting: %s').format(_('valid DNS server address'));
+
+	return true;
+}
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -420,28 +459,8 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 		so.retain = true;
 		so.validate = function(section_id, value) {
-			if (section_id && !['wan'].includes(value)) {
-				if (!value)
-					return _('Expecting: %s').format(_('non-empty value'));
-
-				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if ((ipv6_support === '1') && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply((ipv6_support === '1') ? 'ipaddr' : 'ip4addr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
+			return validateDnsServerAddress.call(this, section_id, value,
+				{ allowWan: true, required: true, checkIpv6Support: true });
 		}
 
 		so = ss.option(form.Value, 'china_dns_server', _('China DNS server'),
@@ -455,27 +474,8 @@ return view.extend({
 		so.rmempty = false;
 		so.retain = true;
 		so.validate = function(section_id, value) {
-			if (section_id && !['wan'].includes(value)) {
-				if (!value)
-					return _('Expecting: %s').format(_('non-empty value'));
-
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply('ipaddr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
+			return validateDnsServerAddress.call(this, section_id, value,
+				{ allowWan: true, required: true, checkIpv6Support: false });
 		}
 
 		so = ss.option(form.DynamicList, 'dns_server_fallback', _('DNS server (fallback)'),
@@ -483,25 +483,8 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', /^(bypass_mainland_china|global)$/);
 		so.retain = true;
 		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if ((ipv6_support === '1') && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply((ipv6_support === '1') ? 'ipaddr' : 'ip4addr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
+			return validateDnsServerAddress.call(this, section_id, value,
+				{ allowWan: false, required: false, checkIpv6Support: true });
 		}
 
 		so = ss.option(form.DynamicList, 'china_dns_server_fallback', _('China DNS server (fallback)'),
@@ -509,24 +492,8 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply('ipaddr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
+			return validateDnsServerAddress.call(this, section_id, value,
+				{ allowWan: false, required: false, checkIpv6Support: false });
 		}
 
 		so = ss.option(form.ListValue, 'dns_fallback_strategy', _('DNS fallback strategy'),

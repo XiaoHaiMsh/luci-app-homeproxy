@@ -9,7 +9,7 @@ import { cursor } from 'uci';
 import {
 	createNodeLabelRegistry, isEmpty, normalizeList, parseURL, reserveUniqueLabel,
 	strToBool, strToInt, strToTime,
-	removeBlankAttrs, atomicWrite, validation, HP_DIR, RUN_DIR
+	removeBlankAttrs, atomicWrite, validation, xhttpPadding, parseHeaderList, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
 const ubus = connect();
@@ -195,7 +195,7 @@ let tun_name,
 
 udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
 
-if (match(proxy_mode, /tun/)) {
+if (proxy_mode === 'tun') {
 
 	tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
 	tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
@@ -272,41 +272,11 @@ function generate_endpoint(node) {
 	return endpoint;
 }
 
-/* sing-box-extended FATALs with "x_padding_bytes cannot be disabled" whenever xhttp
- * padding resolves to empty: an explicit "0"/"0-0" disables it, and an absent field
- * decodes to "" which counts as disabled too. So the field must always be present
- * and non-empty on every xhttp transport. Coerce any disabling/empty value to a
- * sane default range instead of leaving it empty/omitted. Must be declared before
- * generate_outbound()/generate_endpoint(), since ucode closures capture the
- * enclosing scope as of their own definition point, not at call time. */
-function xhttp_padding(v) {
-	return (isEmpty(v) || v === '0' || v === '0-0') ? '100-1000' : v;
-}
-
-/* Parses a DynamicList of "Key: Value" lines (as used by the xhttp_headers
- * field) into a headers object, or null if there's nothing usable. */
-function parseHeaderList(list) {
-	if (isEmpty(list))
-		return null;
-
-	let headers = {};
-	for (let line in list) {
-		let pos = index(line, ':');
-		if (pos < 0)
-			continue;
-
-		let key = trim(substr(line, 0, pos));
-		let val = trim(substr(line, pos + 1));
-		if (!isEmpty(key))
-			headers[key] = val;
-	}
-
-	return length(keys(headers)) ? headers : null;
-}
-
 function generate_outbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
+
+	const is_xhttp = (node.transport === 'xhttp');
 
 	const outbound = {
 		type: node.type,
@@ -401,7 +371,7 @@ function generate_outbound(node) {
 			path: node.http_path || node.ws_path || node.xhttp_path,
 			headers: node.ws_host ? {
 				Host: node.ws_host
-			} : ((node.transport === 'xhttp') ? parseHeaderList(node.xhttp_headers) : null),
+			} : (is_xhttp ? parseHeaderList(node.xhttp_headers) : null),
 			/* "method" is only a real field on the plain http transport
 			 * (V2RayHTTPOptions.Method). xhttp's equivalent is a different,
 			 * separately-named field (uplink_http_method) below - emitting it
@@ -415,33 +385,33 @@ function generate_outbound(node) {
 			ping_timeout: strToTime(node.http_ping_timeout),
 			permit_without_stream: strToBool(node.grpc_permit_without_stream),
 
-			mode: (node.transport === 'xhttp') ? (node.xhttp_mode || null) : null,
-			domain_strategy: (node.transport === 'xhttp') ? (node.xhttp_domain_strategy || null) : null,
-			x_padding_bytes: (node.transport === 'xhttp') ? xhttp_padding(node.xhttp_padding_bytes) : null,
-			no_grpc_header: (node.transport === 'xhttp') ? strToBool(node.xhttp_no_grpc_header) : null,
-			sc_max_each_post_bytes: (node.transport === 'xhttp') ? strToInt(node.xhttp_sc_max_each_post_bytes) : null,
-			sc_min_posts_interval_ms: (node.transport === 'xhttp') ? strToInt(node.xhttp_sc_min_posts_interval_ms) : null,
-			uplink_http_method: (node.transport === 'xhttp') ? (node.xhttp_method || null) : null,
-			congestion_controller: (node.transport === 'xhttp') ? (node.xhttp_congestion_controller || null) : null,
-			cwnd: (node.transport === 'xhttp') ? strToInt(node.xhttp_cwnd) : null,
+			mode: is_xhttp ? (node.xhttp_mode || null) : null,
+			domain_strategy: is_xhttp ? (node.xhttp_domain_strategy || null) : null,
+			x_padding_bytes: is_xhttp ? xhttpPadding(node.xhttp_padding_bytes) : null,
+			no_grpc_header: is_xhttp ? strToBool(node.xhttp_no_grpc_header) : null,
+			sc_max_each_post_bytes: is_xhttp ? strToInt(node.xhttp_sc_max_each_post_bytes) : null,
+			sc_min_posts_interval_ms: is_xhttp ? strToInt(node.xhttp_sc_min_posts_interval_ms) : null,
+			uplink_http_method: is_xhttp ? (node.xhttp_method || null) : null,
+			congestion_controller: is_xhttp ? (node.xhttp_congestion_controller || null) : null,
+			cwnd: is_xhttp ? strToInt(node.xhttp_cwnd) : null,
 
-			x_padding_obfs_mode: (node.transport === 'xhttp') ? strToBool(node.xhttp_x_padding_obfs_mode) : null,
-			x_padding_placement: (node.transport === 'xhttp') ? (node.xhttp_x_padding_placement || null) : null,
-			x_padding_key: (node.transport === 'xhttp') ? (node.xhttp_x_padding_key || null) : null,
-			x_padding_header: (node.transport === 'xhttp') ? (node.xhttp_x_padding_header || null) : null,
-			x_padding_method: (node.transport === 'xhttp') ? (node.xhttp_x_padding_method || null) : null,
+			x_padding_obfs_mode: is_xhttp ? strToBool(node.xhttp_x_padding_obfs_mode) : null,
+			x_padding_placement: is_xhttp ? (node.xhttp_x_padding_placement || null) : null,
+			x_padding_key: is_xhttp ? (node.xhttp_x_padding_key || null) : null,
+			x_padding_header: is_xhttp ? (node.xhttp_x_padding_header || null) : null,
+			x_padding_method: is_xhttp ? (node.xhttp_x_padding_method || null) : null,
 
-			session_placement: (node.transport === 'xhttp') ? (node.xhttp_session_placement || null) : null,
-			session_key: (node.transport === 'xhttp') ? (node.xhttp_session_key || null) : null,
-			session_id_table: (node.transport === 'xhttp') ? (node.xhttp_session_id_table || null) : null,
-			session_id_length: (node.transport === 'xhttp') ? (node.xhttp_session_id_length || null) : null,
+			session_placement: is_xhttp ? (node.xhttp_session_placement || null) : null,
+			session_key: is_xhttp ? (node.xhttp_session_key || null) : null,
+			session_id_table: is_xhttp ? (node.xhttp_session_id_table || null) : null,
+			session_id_length: is_xhttp ? (node.xhttp_session_id_length || null) : null,
 
-			seq_placement: (node.transport === 'xhttp') ? (node.xhttp_seq_placement || null) : null,
-			seq_key: (node.transport === 'xhttp') ? (node.xhttp_seq_key || null) : null,
+			seq_placement: is_xhttp ? (node.xhttp_seq_placement || null) : null,
+			seq_key: is_xhttp ? (node.xhttp_seq_key || null) : null,
 
-			uplink_data_placement: (node.transport === 'xhttp') ? (node.xhttp_uplink_data_placement || null) : null,
-			uplink_data_key: (node.transport === 'xhttp') ? (node.xhttp_uplink_data_key || null) : null,
-			uplink_chunk_size: (node.transport === 'xhttp') ? (node.xhttp_uplink_chunk_size || null) : null,
+			uplink_data_placement: is_xhttp ? (node.xhttp_uplink_data_placement || null) : null,
+			uplink_data_key: is_xhttp ? (node.xhttp_uplink_data_key || null) : null,
+			uplink_chunk_size: is_xhttp ? (node.xhttp_uplink_chunk_size || null) : null,
 
 			/* The real field name is "download" (V2RayXHTTPOptions.Download),
 			 * not "download_settings" - the old key was silently dropped/
@@ -451,12 +421,12 @@ function generate_outbound(node) {
 			 * runs against it too (present whenever "download" is non-null) -
 			 * it must always carry a valid x_padding_bytes, so fall back to
 			 * the main leg's padding when no download-specific value is set. */
-			download: (node.transport === 'xhttp' && (node.xhttp_download_host || node.xhttp_download_path || node.xhttp_download_server)) ? {
+			download: (is_xhttp && (node.xhttp_download_host || node.xhttp_download_path || node.xhttp_download_server)) ? {
 				host: node.xhttp_download_host || null,
 				path: node.xhttp_download_path || null,
 				headers: parseHeaderList(node.xhttp_download_headers),
 				domain_strategy: node.xhttp_download_domain_strategy || null,
-				x_padding_bytes: xhttp_padding(node.xhttp_download_padding_bytes || node.xhttp_padding_bytes),
+				x_padding_bytes: xhttpPadding(node.xhttp_download_padding_bytes || node.xhttp_padding_bytes),
 				uplink_http_method: node.xhttp_download_method || null,
 				congestion_controller: node.xhttp_download_congestion_controller || null,
 				cwnd: strToInt(node.xhttp_download_cwnd),
@@ -499,7 +469,7 @@ function generate_outbound(node) {
 				detour: node.xhttp_download_detour || null
 			} : null,
 
-			xmux: (node.transport === 'xhttp') ? {
+			xmux: is_xhttp ? {
 				max_concurrency: node.xhttp_xmux_max_concurrency,
 				max_connections: strToInt(node.xhttp_xmux_max_connections),
 				c_max_reuse_times: strToInt(node.xhttp_xmux_c_max_reuse_times),
@@ -675,7 +645,7 @@ push(config.inbounds, {
 	set_system_proxy: false
 });
 
-if (match(proxy_mode, /tun/))
+if (proxy_mode === 'tun')
 	push(config.inbounds, {
 		type: 'tun',
 		tag: 'tun-in',
@@ -864,7 +834,7 @@ let needs_neighbor = false;
 if (!isEmpty(main_node))
 	push(route_prefilter_rules, { inbound: 'tun-in', network: 'icmp', action: 'route', outbound: 'direct-out' });
 
-if (match(proxy_mode, /tun/) && !isEmpty(main_node)) {
+if (proxy_mode === 'tun' && !isEmpty(main_node)) {
 
 	const route_ports = parseRoutePorts(routing_port);
 	if (length(route_ports.ports) || length(route_ports.ranges)) {
@@ -969,7 +939,7 @@ config.route = {
 	default_http_client: isEmpty(main_node) ? null : 'main-out'
 };
 
-if (match(proxy_mode, /tun/) && !isEmpty(main_node) && needs_neighbor)
+if (proxy_mode === 'tun' && !isEmpty(main_node) && needs_neighbor)
 	config.route.find_neighbor = true;
 
 if (!isEmpty(main_node)) {
@@ -1237,7 +1207,7 @@ if (!isEmpty(main_node)) {
 		});
 	}
 
-	if (match(proxy_mode, /tun/) && routing_mode === 'bypass_mainland_china')
+	if (proxy_mode === 'tun' && routing_mode === 'bypass_mainland_china')
 		push(config.route.rules, { rule_set: 'geoip-cn', action: 'route', outbound: 'direct-out' });
 
 	if (main_udp_node === 'urltest' || dedicated_udp_node)

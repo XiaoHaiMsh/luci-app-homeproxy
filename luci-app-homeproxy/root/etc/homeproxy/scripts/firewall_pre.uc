@@ -10,8 +10,7 @@ const cfgname = 'homeproxy';
 const uci = cursor();
 uci.load(cfgname);
 
-const main_node = uci.get(cfgname, 'config', 'main_node') || 'nil',
-      proxy_mode = uci.get(cfgname, 'config', 'proxy_mode') || 'tun';
+const main_node = uci.get(cfgname, 'config', 'main_node') || 'nil';
 
 const outbound_node = main_node;
 const server_enabled = uci.get(cfgname, 'server', 'enabled');

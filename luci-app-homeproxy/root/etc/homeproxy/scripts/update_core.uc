@@ -2,113 +2,29 @@
 
 'use strict';
 
-import { access, popen, readfile, writefile } from 'fs';
+import { access, popen, readfile } from 'fs';
 
-import { shellQuote, HP_DIR, RUN_DIR } from 'homeproxy';
+import {
+	shellQuote, HP_DIR, RUN_DIR, jobWrite, coreDetectArch,
+	coreGoarch, coreFetchRelease, coreArchMatches, CORE_REPO_OFFICIAL
+} from 'homeproxy';
 
-const JOBS_DIR = `${RUN_DIR}/jobs`;
 const JOB_NAME = 'core_official';
 
 const SINGBOX_BIN     = '/usr/bin/sing-box';
-const CORE_REPO       = 'shtorm-7/sing-box-extended';
+const CORE_REPO       = CORE_REPO_OFFICIAL;
 
-function job_esc(s) {
-	return replace(replace('' + (s ?? ''), '\\', '\\\\'), '"', '\\"');
-}
-
+/* Thin wrapper: every call site below reports on this script's one job,
+ * so it's more readable to fix the job name here once than to repeat it
+ * at each of the 8 call sites. The actual write (JSON layout + atomic
+ * rename) lives in the shared jobWrite(), not duplicated here. */
 function job_write(state, stage, message, version) {
-	system(`mkdir -p ${shellQuote(JOBS_DIR)}`);
-
-	let fields = [ `"ts":"${time()}"`, `"state":"${job_esc(state)}"`, `"stage":"${job_esc(stage)}"` ];
-	if (message) push(fields, `"message":"${job_esc(message)}"`);
-	if (version) push(fields, `"version":"${job_esc(version)}"`);
-
-	const path = `${JOBS_DIR}/${JOB_NAME}.json`;
-	writefile(`${path}.tmp`, '{' + join(',', fields) + '}');
-	system(`mv -f ${shellQuote(path + '.tmp')} ${shellQuote(path)}`);
+	jobWrite(JOB_NAME, state, stage, message, version);
 }
 
 function fail(stage, message, version) {
 	job_write('error', stage, message, version);
 	exit(0);
-}
-
-function core_detect_arch() {
-	const os_rel = readfile('/etc/os-release') || '';
-	const m = match(os_rel, /OPENWRT_ARCH="?([^"\n]+)"?/);
-	return m ? trim(m[1]) : '';
-}
-
-const CORE_GOARCH_MAP = {
-	'x86_64': 'amd64',
-	'i386_pentium4': '386', 'i386_pentium-mmx': '386',
-	'aarch64_generic': 'arm64', 'aarch64_cortex-a53': 'arm64',
-	'aarch64_cortex-a72': 'arm64', 'aarch64_cortex-a76': 'arm64',
-	'arm_cortex-a7': 'armv7', 'arm_cortex-a7_neon-vfpv4': 'armv7',
-	'arm_cortex-a7_vfpv4': 'armv7', 'arm_cortex-a8_vfpv3': 'armv7',
-	'arm_cortex-a9': 'armv7', 'arm_cortex-a9_vfpv3-d16': 'armv7',
-	'arm_cortex-a15_neon-vfpv4': 'armv7',
-	'arm_arm1176jzf-s_vfp': 'armv6', 'arm_mpcore': 'armv6',
-	'arm_xscale': 'armv5', 'arm_arm926ej-s': 'armv5', 'arm_fa526': 'armv5',
-	'mipsel_24kc': 'mipsle', 'mipsel_74kc': 'mipsle', 'mipsel_mips32': 'mipsle',
-	'mips_24kc': 'mips', 'mips_4kec': 'mips', 'mips_mips32': 'mips',
-	'mips64_octeonplus': 'mips64', 'mips64_mips64r2': 'mips64',
-	'mips64el_mips64r2': 'mips64le',
-	'riscv64_generic': 'riscv64',
-	'loongarch64_generic': 'loong64'
-};
-
-function core_goarch(owrt_arch) {
-	if (owrt_arch in CORE_GOARCH_MAP) return CORE_GOARCH_MAP[owrt_arch];
-	if (match(owrt_arch, /^aarch64/)) return 'arm64';
-	if (match(owrt_arch, /^arm_cortex/)) return 'armv7';
-	if (match(owrt_arch, /^mipsel/)) return 'mipsle';
-	if (match(owrt_arch, /^mips_/)) return 'mips';
-	if (match(owrt_arch, /^mips64el/)) return 'mips64le';
-	if (match(owrt_arch, /^mips64/)) return 'mips64';
-	if (match(owrt_arch, /^riscv64/)) return 'riscv64';
-	if (match(owrt_arch, /^loongarch64/)) return 'loong64';
-	if (match(owrt_arch, /^i386/)) return '386';
-	return null;
-}
-
-function core_gh_token_header() {
-	let token = null;
-	const fd = popen('uci -q get homeproxy.config.github_token 2>/dev/null');
-	if (fd) { token = trim(fd.read('all')); fd.close(); }
-	return (token && length(token)) ? `-H ${shellQuote(`Authorization: Bearer ${token}`)}` : '';
-}
-
-function core_fetch_json(url) {
-	const token_hdr = core_gh_token_header();
-	const fd = popen(`/usr/bin/curl -4 -fsSL --connect-timeout 10 --max-time 15 ${token_hdr} ${shellQuote(url)} 2>/dev/null`);
-	if (!fd) return null;
-	const raw = trim(fd.read('all')); fd.close();
-	if (!length(raw)) return null;
-
-	try { return json(raw); } catch (e) { return null; }
-}
-
-function core_fetch_release(channel) {
-	if (channel === 'latest') {
-		const data = core_fetch_json(`https://api.github.com/repos/${CORE_REPO}/releases?per_page=1`);
-		return (type(data) === 'array' && length(data)) ? data[0] : null;
-	}
-
-	const data = core_fetch_json(`https://api.github.com/repos/${CORE_REPO}/releases/latest`);
-	if (data?.tag_name) return data;
-
-	const list = core_fetch_json(`https://api.github.com/repos/${CORE_REPO}/releases?per_page=30`);
-	if (type(list) === 'array')
-		for (let rel in list)
-			if (rel?.tag_name && !rel.prerelease && !rel.draft)
-				return rel;
-
-	return null;
-}
-
-function core_arch_matches(filename, goarch) {
-	return !!match(filename, regexp('(^|[-_.])' + goarch + '($|[-_.])'));
 }
 
 function core_cache_paths() {
@@ -132,15 +48,15 @@ function core_cache_paths() {
 
 const channel = (ARGV[0] === 'stable') ? 'stable' : 'latest';
 
-const arch = core_detect_arch();
+const arch = coreDetectArch();
 if (!arch)
 	fail('preparing', 'could not detect device architecture');
 
-const goarch = core_goarch(arch);
+const goarch = coreGoarch(arch);
 if (!goarch)
 	fail('preparing', `no Go-arch mapping for OpenWrt arch "${arch}"`);
 
-const release = core_fetch_release(channel);
+const release = coreFetchRelease(CORE_REPO, channel);
 if (!release?.assets)
 	fail('preparing', 'could not read release info from GitHub');
 
@@ -152,7 +68,7 @@ for (let asset in release.assets) {
 	if (!match(n, /linux/i)) continue;
 	if (match(n, /openwrt|alpine|\.apk$|\.deb$|\.rpm$/i)) continue;
 	if (!match(n, /\.(tar\.gz|tgz)$/i)) continue;
-	if (!core_arch_matches(n, goarch)) continue;
+	if (!coreArchMatches(n, goarch)) continue;
 	push(candidates, asset);
 }
 let chosen = null;

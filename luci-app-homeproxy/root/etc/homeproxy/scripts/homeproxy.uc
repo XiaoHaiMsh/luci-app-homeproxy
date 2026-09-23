@@ -1,5 +1,5 @@
 
-import { mkstemp, popen, rename, writefile } from 'fs';
+import { mkstemp, popen, readfile, rename, writefile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
 export const HP_DIR = '/etc/homeproxy';
@@ -255,6 +255,36 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	return { changed, removed };
 };
 
+/* sing-box-extended FATALs with "x_padding_bytes cannot be disabled" whenever xhttp
+ * padding resolves to empty: an explicit "0"/"0-0" disables it, and an absent field
+ * decodes to "" which counts as disabled too. So the field must always be present
+ * and non-empty on every xhttp transport. Coerce any disabling/empty value to a
+ * sane default range instead of leaving it empty/omitted. */
+export function xhttpPadding(v) {
+	return (isEmpty(v) || v === '0' || v === '0-0') ? '100-1000' : v;
+};
+
+/* Parses a DynamicList of "Key: Value" lines (as used by the xhttp_headers
+ * field) into a headers object, or null if there's nothing usable. */
+export function parseHeaderList(list) {
+	if (isEmpty(list))
+		return null;
+
+	let headers = {};
+	for (let line in list) {
+		let pos = index(line, ':');
+		if (pos < 0)
+			continue;
+
+		let key = trim(substr(line, 0, pos));
+		let val = trim(substr(line, pos + 1));
+		if (!isEmpty(key))
+			headers[key] = val;
+	}
+
+	return length(keys(headers)) ? headers : null;
+};
+
 export function strToBool(str) {
 	return (str === '1') || null;
 };
@@ -401,4 +431,119 @@ export function parseURL(url) {
 	objurl.origin = `${objurl.protocol}://${objurl.host}`;
 
 	return objurl;
+};
+
+/* ---- Async job status files (/var/run/homeproxy/jobs/<name>.json) ----
+ * Shared by the rpcd endpoint (luci.homeproxy) and update_core.uc, so the
+ * status file format and its atomic-write behaviour can never drift apart. */
+const JOBS_DIR = `${RUN_DIR}/jobs`;
+
+function jobEsc(s) {
+	return replace(replace('' + (s ?? ''), '\\', '\\\\'), '"', '\\"');
+};
+
+export function jobWrite(name, state, stage, message, version) {
+	system(`mkdir -p ${shellQuote(JOBS_DIR)}`);
+
+	let fields = [ `"ts":"${time()}"`, `"state":"${jobEsc(state)}"`, `"stage":"${jobEsc(stage)}"` ];
+	if (message) push(fields, `"message":"${jobEsc(message)}"`);
+	if (version) push(fields, `"version":"${jobEsc(version)}"`);
+
+	atomicWrite(`${JOBS_DIR}/${name}.json`, '{' + join(',', fields) + '}');
+};
+
+export function jobRead(name) {
+	const raw = readfile(`${JOBS_DIR}/${name}.json`);
+	if (!raw)
+		return { state: 'idle' };
+
+	try {
+		const parsed = json(raw);
+		return (type(parsed) === 'object') ? parsed : { state: 'idle' };
+	} catch (e) {
+		return { state: 'idle' };
+	}
+};
+
+/* ---- sing-box core update helpers ----
+ * Shared by the rpcd endpoint (luci.homeproxy, for core_check_remote) and
+ * update_core.uc (the actual background download/install job). */
+export const CORE_REPO_OFFICIAL = 'shtorm-7/sing-box-extended';
+
+export function coreDetectArch() {
+	const os_rel = readfile('/etc/os-release') || '';
+	const m = match(os_rel, /OPENWRT_ARCH="?([^"\n]+)"?/);
+	return m ? trim(m[1]) : '';
+};
+
+export const CORE_GOARCH_MAP = {
+	'x86_64': 'amd64',
+	'i386_pentium4': '386', 'i386_pentium-mmx': '386',
+	'aarch64_generic': 'arm64', 'aarch64_cortex-a53': 'arm64',
+	'aarch64_cortex-a72': 'arm64', 'aarch64_cortex-a76': 'arm64',
+	'arm_cortex-a7': 'armv7', 'arm_cortex-a7_neon-vfpv4': 'armv7',
+	'arm_cortex-a7_vfpv4': 'armv7', 'arm_cortex-a8_vfpv3': 'armv7',
+	'arm_cortex-a9': 'armv7', 'arm_cortex-a9_vfpv3-d16': 'armv7',
+	'arm_cortex-a15_neon-vfpv4': 'armv7',
+	'arm_arm1176jzf-s_vfp': 'armv6', 'arm_mpcore': 'armv6',
+	'arm_xscale': 'armv5', 'arm_arm926ej-s': 'armv5', 'arm_fa526': 'armv5',
+	'mipsel_24kc': 'mipsle', 'mipsel_74kc': 'mipsle', 'mipsel_mips32': 'mipsle',
+	'mips_24kc': 'mips', 'mips_4kec': 'mips', 'mips_mips32': 'mips',
+	'mips64_octeonplus': 'mips64', 'mips64_mips64r2': 'mips64',
+	'mips64el_mips64r2': 'mips64le',
+	'riscv64_generic': 'riscv64',
+	'loongarch64_generic': 'loong64'
+};
+
+export function coreGoarch(owrt_arch) {
+	if (owrt_arch in CORE_GOARCH_MAP) return CORE_GOARCH_MAP[owrt_arch];
+	if (match(owrt_arch, /^aarch64/)) return 'arm64';
+	if (match(owrt_arch, /^arm_cortex/)) return 'armv7';
+	if (match(owrt_arch, /^mipsel/)) return 'mipsle';
+	if (match(owrt_arch, /^mips_/)) return 'mips';
+	if (match(owrt_arch, /^mips64el/)) return 'mips64le';
+	if (match(owrt_arch, /^mips64/)) return 'mips64';
+	if (match(owrt_arch, /^riscv64/)) return 'riscv64';
+	if (match(owrt_arch, /^loongarch64/)) return 'loong64';
+	if (match(owrt_arch, /^i386/)) return '386';
+	return null;
+};
+
+export function coreGhTokenHeader() {
+	let token = null;
+	const fd = popen('uci -q get homeproxy.config.github_token 2>/dev/null');
+	if (fd) { token = trim(fd.read('all')); fd.close(); }
+	return (token && length(token)) ? `-H ${shellQuote(`Authorization: Bearer ${token}`)}` : '';
+};
+
+export function coreFetchJson(url) {
+	const token_hdr = coreGhTokenHeader();
+	const fd = popen(`/usr/bin/curl -4 -fsSL --connect-timeout 10 --max-time 15 ${token_hdr} ${shellQuote(url)} 2>/dev/null`);
+	if (!fd) return null;
+	const raw = trim(fd.read('all')); fd.close();
+	if (!length(raw)) return null;
+
+	try { return json(raw); } catch (e) { return null; }
+};
+
+export function coreFetchRelease(repo, channel) {
+	if (channel === 'latest') {
+		const data = coreFetchJson(`https://api.github.com/repos/${repo}/releases?per_page=1`);
+		return (type(data) === 'array' && length(data)) ? data[0] : null;
+	}
+
+	const data = coreFetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
+	if (data?.tag_name) return data;
+
+	const list = coreFetchJson(`https://api.github.com/repos/${repo}/releases?per_page=30`);
+	if (type(list) === 'array')
+		for (let rel in list)
+			if (rel?.tag_name && !rel.prerelease && !rel.draft)
+				return rel;
+
+	return null;
+};
+
+export function coreArchMatches(filename, goarch) {
+	return !!match(filename, regexp('(^|[-_.])' + goarch + '($|[-_.])'));
 };

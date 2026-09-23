@@ -89,6 +89,21 @@ function bool_to_uci(value) {
 	return null;
 }
 
+/* xhttp's "xmux" connection-multiplexing settings: the same 6 fields are
+ * mapped twice in parse_uri() (once for the main xhttp leg, once for the
+ * optional download leg), always with an identical camelCase-to-uci-option
+ * mapping - only the config-key prefix differs. */
+function apply_xmux(config, prefix, xmux) {
+	if (!xmux)
+		return;
+	config[`${prefix}_max_concurrency`] = xmux.maxConcurrency || null;
+	config[`${prefix}_max_connections`] = xmux.maxConnections || null;
+	config[`${prefix}_c_max_reuse_times`] = xmux.cMaxReuseTimes || null;
+	config[`${prefix}_h_max_request_times`] = xmux.hMaxRequestTimes || null;
+	config[`${prefix}_h_max_reusable_secs`] = xmux.hMaxReusableSecs || null;
+	config[`${prefix}_h_keep_alive_period`] = xmux.hKeepAlivePeriod || null;
+}
+
 function normalize_list(value) {
 	if (!has_value(value))
 		return null;
@@ -767,7 +782,7 @@ function parse_uri(uri) {
 		case 'socks':
 		case 'socks4':
 		case 'socks4a':
-		case 'socsk5':
+		case 'socks5':
 		case 'socks5h':
 			url = parseURL('http://' + uri[1]) || {};
 
@@ -882,10 +897,10 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (params.type === 'kcp') {
-				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				return null;
 			} else if (params.type === 'quic' && ((params.quicSecurity && params.quicSecurity !== 'none') || !sing_features.with_quic)) {
-				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
 					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
 
@@ -1017,24 +1032,12 @@ function parse_uri(uri) {
 					config.xhttp_download_uplink_data_placement = dl.uplinkDataPlacement || null;
 					config.xhttp_download_uplink_data_key = dl.uplinkDataKey || null;
 					config.xhttp_download_uplink_chunk_size = dl.uplinkChunkSize || null;
-					if (dl.xmux) {
-						config.xhttp_download_xmux_max_concurrency = dl.xmux.maxConcurrency || null;
-						config.xhttp_download_xmux_max_connections = dl.xmux.maxConnections || null;
-						config.xhttp_download_xmux_c_max_reuse_times = dl.xmux.cMaxReuseTimes || null;
-						config.xhttp_download_xmux_h_max_request_times = dl.xmux.hMaxRequestTimes || null;
-						config.xhttp_download_xmux_h_max_reusable_secs = dl.xmux.hMaxReusableSecs || null;
-						config.xhttp_download_xmux_h_keep_alive_period = dl.xmux.hKeepAlivePeriod || null;
-					}
+					if (dl.xmux)
+						apply_xmux(config, 'xhttp_download_xmux', dl.xmux);
 				}
 
-				if (xhttp_extra.xmux) {
-					config.xhttp_xmux_max_concurrency = xhttp_extra.xmux.maxConcurrency || null;
-					config.xhttp_xmux_max_connections = xhttp_extra.xmux.maxConnections || null;
-					config.xhttp_xmux_c_max_reuse_times = xhttp_extra.xmux.cMaxReuseTimes || null;
-					config.xhttp_xmux_h_max_request_times = xhttp_extra.xmux.hMaxRequestTimes || null;
-					config.xhttp_xmux_h_max_reusable_secs = xhttp_extra.xmux.hMaxReusableSecs || null;
-					config.xhttp_xmux_h_keep_alive_period = xhttp_extra.xmux.hKeepAlivePeriod || null;
-				}
+				if (xhttp_extra.xmux)
+					apply_xmux(config, 'xhttp_xmux', xhttp_extra.xmux);
 
 				break;
 			}

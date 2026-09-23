@@ -282,7 +282,7 @@ service_stopped() {
 	config_load "$CONF"
 	local proxy_mode tun_name
 	config_get proxy_mode "config" "proxy_mode" "tun"
-	[ "$proxy_mode" = "tun" ] || [ "$proxy_mode" = "redirect_tun" ] || return 0
+	[ "$proxy_mode" = "tun" ] || return 0
 	config_get tun_name "infra" "tun_name" "singtun0"
 
 	if ip link show "$tun_name" >/dev/null 2>&1; then
