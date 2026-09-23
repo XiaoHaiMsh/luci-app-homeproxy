@@ -1,4 +1,3 @@
-
 'use strict';
 'require form';
 'require network';
@@ -65,13 +64,6 @@ function domainSuffixOverlap(left, right) {
 	return endsWithDomain(left, right) || endsWithDomain(right, left);
 }
 
-/*
- * Cross-list conflict check, ported from a comparison fork. Fixed one asymmetry
- * bug found in the original: when comparing a keyword entry against a suffix
- * entry, only one direction (suffix.includes(keyword)) was checked there, so a
- * keyword that is a superstring of a suffix (rare, but possible) went
- * undetected. Both directions are now checked for every keyword/suffix pairing.
- */
 function findDomainListConflict(groups) {
 	let entries = [];
 	for (let group of groups) {
@@ -140,15 +132,6 @@ function noopFeedback() {
 	return new Promise((resolve) => setTimeout(resolve, 400));
 }
 
-/* Shared by the four DNS server option validators below (dns_server,
- * china_dns_server, dns_server_fallback, china_dns_server_fallback).
- * They differ only in three ways, captured by opts:
- *   - allowWan:  whether the special "wan" value is accepted as-is
- *   - required:  whether an empty value is an error (vs. simply valid)
- *   - checkIpv6Support: whether IPv6 addresses are only allowed when the
- *     section's "ipv6_support" toggle is on, or always allowed
- * Must be called with `this` bound to the form option (e.g. via .call(this, ...))
- * so `this.section.formvalue()` works for the ipv6_support lookup. */
 function validateDnsServerAddress(section_id, value, opts) {
 	opts = opts || {};
 
@@ -254,9 +237,6 @@ return view.extend({
 			});
 		};
 
-		/* Proxy/Direct Domain List content lives outside UCI (RPC-backed files), so it
-		 * needs its own load/pending-edit cache to be included in cross-list validation
-		 * even for tabs the user never opened this session. */
 		let domainListCache = Object.create(null),
 		    pendingDomainLists = Object.create(null);
 
@@ -284,8 +264,6 @@ return view.extend({
 				pendingDomainLists[type] : (domainListCache[type] || '');
 		}
 
-		/* Cross-list conflict check: Proxy/Direct Domain List plus every enabled Proxy
-		 * Rules entry that uses a custom inline "Domain list". Throws to block saving. */
 		function validateDomainLists() {
 			let groups = [
 				{ id: 'proxy_list', label: _('Proxy Domain List') },
@@ -330,7 +308,6 @@ return view.extend({
 				return saveMap.call(this, () => Promise.resolve(
 					typeof cb === 'function' ? cb() : null
 				).then(() => {
-					/* Include the Proxy/Direct Domain List tabs even if never opened. */
 					return Promise.all(['proxy_list', 'direct_list'].map(loadDomainList));
 				}).then(() => {
 					validateDomainLists();
