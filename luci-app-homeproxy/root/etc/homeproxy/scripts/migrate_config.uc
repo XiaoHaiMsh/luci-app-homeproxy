@@ -313,13 +313,6 @@ function delete_legacy_runtime_rules() {
 	])
 		system('printf \'\\n\' > ' + shell_quote(path) + ' 2>/dev/null');
 
-	system('DNSMASQ_UCI_CONFIG="$(uci -q show dhcp.@dnsmasq[0] 2>/dev/null | awk \'NR==1 {split($0, conf, /[.=]/); print conf[2]}\')"; ' +
-		'if [ -f "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG" ]; then ' +
-		'DNSMASQ_DIR="$(awk -F = \'/^conf-dir=/ {print $2}\' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")/dnsmasq-homeproxy.d"; ' +
-		'else DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"; fi; ' +
-		'rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR" 2>/dev/null; ' +
-		'[ -x /etc/init.d/dnsmasq ] && /etc/init.d/dnsmasq restart >/dev/null 2>&1');
-
 	if (match(old_proxy_mode || '', /tun/))
 		system('ip link set dev ' + shell_quote(legacy_tun_name) + ' down 2>/dev/null; ip tuntap del mode tun dev ' + shell_quote(legacy_tun_name) + ' 2>/dev/null');
 
