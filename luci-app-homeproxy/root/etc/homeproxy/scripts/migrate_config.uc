@@ -128,14 +128,6 @@ function normalize_node_list(value) {
 	return result;
 }
 
-function shell_quote(value) {
-	return "'" + replace(value || '', "'", "'\\''") + "'";
-}
-
-function log(message) {
-	system('logger -t homeproxy-migrate ' + shell_quote(message));
-}
-
 function normalize_default_port_list(value) {
 	return replace(trim(value || ''), /[ \t\r\n]+/g, '');
 }
@@ -174,22 +166,6 @@ if (!named_section_exists(ucimigration))
 
 const old_routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainland_china';
 const old_proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode') || 'tun';
-
-const legacy_runtime_present =
-	option_defined(uciinfra, 'table_mark') ||
-	option_defined(uciinfra, 'tproxy_mark') ||
-	option_defined(uciinfra, 'tun_mark') ||
-	option_defined(uciinfra, 'redirect_port') ||
-	option_defined(uciinfra, 'tproxy_port') ||
-	option_defined(uciinfra, 'self_mark') ||
-	option_defined(uciinfra, 'sniff_override') ||
-	named_section_exists(ucirouting) ||
-	old_proxy_mode !== 'tun';
-
-const legacy_table_mark = uci.get(uciconfig, uciinfra, 'table_mark') || '100';
-const legacy_tproxy_mark = uci.get(uciconfig, uciinfra, 'tproxy_mark') || '101';
-const legacy_tun_mark = uci.get(uciconfig, uciinfra, 'tun_mark') || '102';
-const legacy_tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
 
 if (normalize_default_port_list(uci.get(uciconfig, uciinfra, 'common_port')) === normalize_default_port_list(OLD_COMMON_PORT))
 	uci.set(uciconfig, uciinfra, 'common_port', NEW_COMMON_PORT);
@@ -245,7 +221,6 @@ else
 if (old_routing_mode === 'custom') {
 	target_main_node = 'nil';
 	target_main_udp_node = 'same';
-	log('Legacy custom routing mode detected; all custom configuration was discarded.');
 } else {
 	if (target_main_node !== 'nil' && target_main_node !== 'urltest' && !node_exists(target_main_node))
 		target_main_node = first_node() || 'nil';
@@ -269,58 +244,6 @@ uci.set(uciconfig, ucimain, 'main_node', target_main_node || 'nil');
 uci.set(uciconfig, ucimain, 'main_udp_node', target_main_udp_node || 'same');
 
 prune_orphan_urltest_nodes();
-
-function delete_legacy_runtime_rules() {
-	system('mkdir -p /var/run/homeproxy');
-	system('ip rule del fwmark ' + shell_quote(legacy_tproxy_mark) +
-		' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip rule del fwmark ' + shell_quote(legacy_tun_mark) +
-		' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip route del local 0.0.0.0/0 dev lo table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip route del default dev ' + shell_quote(legacy_tun_name) + ' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip -6 rule del fwmark ' + shell_quote(legacy_tproxy_mark) + ' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip -6 rule del fwmark ' + shell_quote(legacy_tun_mark) + ' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip -6 route del local ::/0 dev lo table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-	system('ip -6 route del default dev ' + shell_quote(legacy_tun_name) + ' table ' + shell_quote(legacy_table_mark) + ' 2>/dev/null');
-
-	for (let chain in [
-		'homeproxy_dstnat_redir', 'homeproxy_output_redir',
-		'homeproxy_redirect', 'homeproxy_redirect_proxy',
-		'homeproxy_redirect_proxy_port', 'homeproxy_redirect_lanac',
-		'homeproxy_mangle_prerouting', 'homeproxy_mangle_output',
-		'homeproxy_mangle_tproxy', 'homeproxy_mangle_tproxy_port',
-		'homeproxy_mangle_tproxy_lanac', 'homeproxy_mangle_mark',
-		'homeproxy_mangle_tun', 'homeproxy_mangle_tun_mark'
-	])
-		system('nft flush chain inet fw4 ' + shell_quote(chain) +
-			' 2>/dev/null; nft delete chain inet fw4 ' + shell_quote(chain) + ' 2>/dev/null');
-
-	for (let set_name in [
-		'homeproxy_local_addr_v4', 'homeproxy_local_addr_v6',
-		'homeproxy_gfw_list_v4', 'homeproxy_gfw_list_v6',
-		'homeproxy_mainland_addr_v4', 'homeproxy_mainland_addr_v6',
-		'homeproxy_wan_proxy_addr_v4', 'homeproxy_wan_proxy_addr_v6',
-		'homeproxy_wan_direct_addr_v4', 'homeproxy_wan_direct_addr_v6',
-		'homeproxy_routing_port'
-	])
-		system('nft flush set inet fw4 ' + shell_quote(set_name) +
-			' 2>/dev/null; nft delete set inet fw4 ' + shell_quote(set_name) + ' 2>/dev/null');
-
-	for (let path in [
-		'/var/run/homeproxy/fw4_forward.nft',
-		'/var/run/homeproxy/fw4_input.nft',
-		'/var/run/homeproxy/fw4_post.nft'
-	])
-		system('printf \'\\n\' > ' + shell_quote(path) + ' 2>/dev/null');
-
-	if (match(old_proxy_mode || '', /tun/))
-		system('ip link set dev ' + shell_quote(legacy_tun_name) + ' down 2>/dev/null; ip tuntap del mode tun dev ' + shell_quote(legacy_tun_name) + ' 2>/dev/null');
-
-	system('fw4 reload >/dev/null 2>&1');
-}
-
-if (legacy_runtime_present)
-	delete_legacy_runtime_rules();
 
 set_if_missing(ucimain, 'tcpip_stack', 'mixed');
 uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
@@ -387,20 +310,6 @@ for (let section in [ucirouting, ucidns, 'experimental'])
 	if (named_section_exists(section))
 		uci.delete(uciconfig, section);
 
-for (let path in [
-	'/etc/homeproxy/resources/china_ip4.txt',
-	'/etc/homeproxy/resources/china_ip4.ver',
-	'/etc/homeproxy/resources/china_ip6.txt',
-	'/etc/homeproxy/resources/china_ip6.ver',
-	'/etc/homeproxy/resources/china_list.txt',
-	'/etc/homeproxy/resources/china_list.ver',
-	'/etc/homeproxy/resources/gfw_list.txt',
-	'/etc/homeproxy/resources/gfw_list.ver'
-])
-	system('rm -f ' + shell_quote(path));
-
-system("sed -i '\\#/etc/homeproxy/scripts/update_crond\\.sh#d' /etc/crontabs/root 2>/dev/null");
-system('[ -x /etc/init.d/cron ] && /etc/init.d/cron restart >/dev/null 2>&1');
 uci.set(uciconfig, ucimigration, 'crontab', '1');
 uci.set(uciconfig, ucimigration, 'version', MIGRATION_VERSION);
 
@@ -420,15 +329,6 @@ if (uci.get(uciconfig, ucimain, 'main_udp_node') === 'urltest') {
 }
 
 prune_orphan_urltest_nodes();
-
-if (old_routing_mode === 'custom')
-	log('Legacy custom routing mode was removed without migration.');
-else if (old_routing_mode === 'global')
-	log('Global routing mode was preserved.');
-else if (old_routing_mode !== 'bypass_mainland_china')
-	log(sprintf('Legacy routing mode "%s" was migrated to "bypass_mainland_china".', old_routing_mode));
-if (old_proxy_mode !== 'tun')
-	log(sprintf('Proxy mode "%s" was removed; migrated to TUN.', old_proxy_mode));
 
 if (!empty(uci.changes(uciconfig)))
 	uci.commit(uciconfig);
