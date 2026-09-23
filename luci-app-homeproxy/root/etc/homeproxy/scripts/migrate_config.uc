@@ -95,9 +95,10 @@ if (!named_section_exists(ucicontrol))
 	uci.set(uciconfig, ucicontrol, uciconfig);
 if (!named_section_exists(ucimigration))
 	uci.set(uciconfig, ucimigration, uciconfig);
+if (!named_section_exists(uciserver))
+	uci.set(uciconfig, uciserver, uciconfig);
 
 const old_routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainland_china';
-const old_proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode') || 'tun';
 
 if (normalize_default_port_list(uci.get(uciconfig, uciinfra, 'common_port')) === normalize_default_port_list(OLD_COMMON_PORT))
 	uci.set(uciconfig, uciinfra, 'common_port', NEW_COMMON_PORT);
@@ -174,6 +175,7 @@ set_if_missing(ucimain, 'dashboard_port', '9096');
 set_if_missing(ucimain, 'dashboard_secret', '');
 set_if_missing(ucimain, 'ipv6_support', '1');
 set_if_missing(ucimain, 'log_level', 'warn');
+set_if_missing(uciserver, 'enabled', '0');
 set_if_missing(uciserver, 'log_level', 'warn');
 
 for (let option in [
@@ -214,13 +216,6 @@ for (let section in [ucirouting, ucidns, 'experimental'])
 
 uci.set(uciconfig, ucimigration, 'crontab', '1');
 uci.set(uciconfig, ucimigration, 'version', MIGRATION_VERSION);
-
-if (uci.get(uciconfig, ucimain, 'routing_mode') !== 'global' &&
-	uci.get(uciconfig, ucimain, 'routing_mode') !== 'bypass_mainland_china')
-	uci.set(uciconfig, ucimain, 'routing_mode', 'bypass_mainland_china');
-
-if (uci.get(uciconfig, ucimain, 'proxy_mode') !== 'tun')
-	uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
 
 if (!empty(uci.changes(uciconfig)) && uci.commit(uciconfig) !== true)
 	exit(1);
