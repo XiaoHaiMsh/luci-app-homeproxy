@@ -1,4 +1,4 @@
-#!/usr/bin/ucode -S
+#!/usr/bin/ucode
 
 'use strict';
 
