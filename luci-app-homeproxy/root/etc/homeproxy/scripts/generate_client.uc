@@ -372,11 +372,6 @@ function generate_outbound(node) {
 			headers: node.ws_host ? {
 				Host: node.ws_host
 			} : (is_xhttp ? parseHeaderList(node.xhttp_headers) : null),
-			/* "method" is only a real field on the plain http transport
-			 * (V2RayHTTPOptions.Method). xhttp's equivalent is a different,
-			 * separately-named field (uplink_http_method) below - emitting it
-			 * as "method" is not a field sing-box-extended's xhttp schema
-			 * recognizes and gets rejected by strict decoding. */
 			method: (node.transport === 'http') ? node.http_method : null,
 			max_early_data: strToInt(node.websocket_early_data),
 			early_data_header_name: node.websocket_early_data_header,
@@ -413,14 +408,6 @@ function generate_outbound(node) {
 			uplink_data_key: is_xhttp ? (node.xhttp_uplink_data_key || null) : null,
 			uplink_chunk_size: is_xhttp ? (node.xhttp_uplink_chunk_size || null) : null,
 
-			/* The real field name is "download" (V2RayXHTTPOptions.Download),
-			 * not "download_settings" - the old key was silently dropped/
-			 * rejected by the core and the download leg never actually took
-			 * effect. Download inherits the same base options struct as the
-			 * main transport, so if the core's XPaddingBytes validity check
-			 * runs against it too (present whenever "download" is non-null) -
-			 * it must always carry a valid x_padding_bytes, so fall back to
-			 * the main leg's padding when no download-specific value is set. */
 			download: (is_xhttp && (node.xhttp_download_host || node.xhttp_download_path || node.xhttp_download_server)) ? {
 				host: node.xhttp_download_host || null,
 				path: node.xhttp_download_path || null,
