@@ -1,4 +1,3 @@
-
 import { mkstemp, popen, readfile, rename, writefile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
@@ -255,17 +254,10 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	return { changed, removed };
 };
 
-/* sing-box-extended FATALs with "x_padding_bytes cannot be disabled" whenever xhttp
- * padding resolves to empty: an explicit "0"/"0-0" disables it, and an absent field
- * decodes to "" which counts as disabled too. So the field must always be present
- * and non-empty on every xhttp transport. Coerce any disabling/empty value to a
- * sane default range instead of leaving it empty/omitted. */
 export function xhttpPadding(v) {
 	return (isEmpty(v) || v === '0' || v === '0-0') ? '100-1000' : v;
 };
 
-/* Parses a DynamicList of "Key: Value" lines (as used by the xhttp_headers
- * field) into a headers object, or null if there's nothing usable. */
 export function parseHeaderList(list) {
 	if (isEmpty(list))
 		return null;
@@ -433,9 +425,6 @@ export function parseURL(url) {
 	return objurl;
 };
 
-/* ---- Async job status files (/var/run/homeproxy/jobs/<name>.json) ----
- * Shared by the rpcd endpoint (luci.homeproxy) and update_core.uc, so the
- * status file format and its atomic-write behaviour can never drift apart. */
 const JOBS_DIR = `${RUN_DIR}/jobs`;
 
 function jobEsc(s) {
@@ -465,9 +454,6 @@ export function jobRead(name) {
 	}
 };
 
-/* ---- sing-box core update helpers ----
- * Shared by the rpcd endpoint (luci.homeproxy, for core_check_remote) and
- * update_core.uc (the actual background download/install job). */
 export const CORE_REPO_OFFICIAL = 'shtorm-7/sing-box-extended';
 
 export function coreDetectArch() {
