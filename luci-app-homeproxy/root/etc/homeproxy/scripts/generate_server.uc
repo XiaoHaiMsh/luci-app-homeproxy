@@ -162,11 +162,6 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 				headers: cfg.ws_host ? {
 					Host: cfg.ws_host
 				} : (is_xhttp ? parseHeaderList(cfg.xhttp_headers) : null),
-				/* "method" is only a real field on the plain http transport;
-				 * xhttp has no server-side equivalent at all (uplink_http_method
-				 * is client-only - sing-box-extended's dialer picks it, the
-				 * server just reads whatever method the client sent). Emitting
-				 * "method" under xhttp isn't a field the schema recognizes. */
 				method: (cfg.transport === 'http') ? cfg.http_method : null,
 				max_early_data: strToInt(cfg.websocket_early_data),
 				early_data_header_name: cfg.websocket_early_data_header,
@@ -200,11 +195,6 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 				uplink_data_placement: is_xhttp ? (cfg.xhttp_uplink_data_placement || null) : null,
 				uplink_data_key: is_xhttp ? (cfg.xhttp_uplink_data_key || null) : null,
 				uplink_chunk_size: is_xhttp ? (cfg.xhttp_uplink_chunk_size || null) : null
-				/* "download" is intentionally omitted here: sing-box-extended's
-				 * xhttp server (transport/v2rayxhttp/server.go) never reads
-				 * options.Download - it's a client-only field (used to dial a
-				 * separate stream-down leg, e.g. a different CDN). Emitting it
-				 * on the inbound side would be dead configuration. */
 			};
 		})() : null
 	});
