@@ -274,6 +274,18 @@ set_if_missing(ucimain, 'ipv6_support', '1');
 set_if_missing(ucimain, 'log_level', 'warn');
 set_if_missing(uciserver, 'log_level', 'warn');
 
+for (let option in [
+	'lan_proxy_mode', 'lan_direct_ipv6_ips', 'lan_proxy_ipv6_ips',
+	'lan_global_proxy_ipv6_ips', 'lan_gaming_mode_ipv6_ips',
+	'lan_gaming_mode_ipv4_ips', 'lan_gaming_mode_mac_addrs',
+	'lan_global_proxy_ipv4_ips', 'lan_global_proxy_mac_addrs',
+	'direct_domain_list_checksum', 'proxy_domain_list_checksum'
+])
+	if (option_defined(ucicontrol, option))
+		uci.delete(uciconfig, ucicontrol, option);
+
+set_if_missing(ucicontrol, 'lan_whitelist_mode', '0');
+
 if (!named_section_exists('subscription'))
 	uci.set(uciconfig, 'subscription', uciconfig);
 set_if_missing('subscription', 'allow_insecure', '1');
