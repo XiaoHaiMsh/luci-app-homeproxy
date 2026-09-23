@@ -222,5 +222,5 @@ if (uci.get(uciconfig, ucimain, 'routing_mode') !== 'global' &&
 if (uci.get(uciconfig, ucimain, 'proxy_mode') !== 'tun')
 	uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
 
-if (!empty(uci.changes(uciconfig)))
-	uci.commit(uciconfig);
+if (!empty(uci.changes(uciconfig)) && uci.commit(uciconfig) !== true)
+	exit(1);
