@@ -48,31 +48,8 @@ function empty(value) {
 		((type(value) === 'array' || type(value) === 'object') && length(value) === 0);
 }
 
-function list(value) {
-	if (empty(value))
-		return [];
-
-	return type(value) === 'array' ? value : [value];
-}
-
-function unique_list(value) {
-	let result = [], seen = {};
-	for (let item in list(value)) {
-		item = trim(item || '');
-		if (empty(item) || seen[item])
-			continue;
-		seen[item] = true;
-		push(result, item);
-	}
-	return result;
-}
-
 function section_type(section) {
 	return uci.get(uciconfig, section);
-}
-
-function section_exists(section, type_name) {
-	return section_type(section) === type_name;
 }
 
 function named_section_exists(section) {
@@ -102,53 +79,8 @@ function collect_sections(type_name) {
 	return sections;
 }
 
-function first_node() {
-	let result = null;
-	uci.foreach(uciconfig, ucinode, (cfg) => {
-		if (!result && cfg && cfg['.name'])
-			result = cfg['.name'];
-	});
-	return result;
-}
-
-function node_exists(id) {
-	return !empty(id) && section_exists(id, ucinode);
-}
-
-function normalize_node_list(value) {
-	let result = [], seen = {};
-	for (let id in list(value)) {
-		id = trim(id || '');
-		if (empty(id) || seen[id])
-			continue;
-		seen[id] = true;
-		if (node_exists(id))
-			push(result, id);
-	}
-	return result;
-}
-
 function normalize_default_port_list(value) {
 	return replace(trim(value || ''), /[ \t\r\n]+/g, '');
-}
-
-function filter_urltest_nodes(section, option) {
-	const value = normalize_node_list(uci.get(uciconfig, section, option));
-	if (length(value))
-		uci.set(uciconfig, section, option, value);
-	else if (option_defined(section, option))
-		uci.delete(uciconfig, section, option);
-	return value;
-}
-
-function prune_orphan_urltest_nodes() {
-	if (uci.get(uciconfig, ucimain, 'main_node') !== 'urltest' &&
-	    option_defined(ucimain, 'main_urltest_nodes'))
-		uci.delete(uciconfig, ucimain, 'main_urltest_nodes');
-
-	if (uci.get(uciconfig, ucimain, 'main_udp_node') !== 'urltest' &&
-	    option_defined(ucimain, 'main_udp_urltest_nodes'))
-		uci.delete(uciconfig, ucimain, 'main_udp_urltest_nodes');
 }
 
 const previous_migration_version = uci.get(uciconfig, ucimigration, 'version') || '';
@@ -221,29 +153,10 @@ else
 if (old_routing_mode === 'custom') {
 	target_main_node = 'nil';
 	target_main_udp_node = 'same';
-} else {
-	if (target_main_node !== 'nil' && target_main_node !== 'urltest' && !node_exists(target_main_node))
-		target_main_node = first_node() || 'nil';
-
-	if (target_main_node === 'urltest') {
-		const main_nodes = filter_urltest_nodes(ucimain, 'main_urltest_nodes');
-		if (!length(main_nodes))
-			target_main_node = first_node() || 'nil';
-	}
-
-	if (target_main_udp_node === 'urltest') {
-		const main_udp_nodes = filter_urltest_nodes(ucimain, 'main_udp_urltest_nodes');
-		if (!length(main_udp_nodes))
-			target_main_udp_node = 'same';
-	} else if (target_main_udp_node !== 'nil' && target_main_udp_node !== 'same' && !node_exists(target_main_udp_node)) {
-		target_main_udp_node = 'same';
-	}
 }
 
 uci.set(uciconfig, ucimain, 'main_node', target_main_node || 'nil');
 uci.set(uciconfig, ucimain, 'main_udp_node', target_main_udp_node || 'same');
-
-prune_orphan_urltest_nodes();
 
 set_if_missing(ucimain, 'tcpip_stack', 'mixed');
 uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
@@ -256,17 +169,6 @@ if (!option_defined(ucimain, 'dns_server_fallback'))
 if (!option_defined(ucimain, 'china_dns_server_fallback'))
 	uci.set(uciconfig, ucimain, 'china_dns_server_fallback', DEFAULT_CHINA_DNS_FALLBACK);
 set_if_missing(ucimain, 'dns_fallback_strategy', 'sequential');
-
-const china_dns_server = uci.get(uciconfig, ucimain, 'china_dns_server');
-if (type(china_dns_server) === 'array') {
-	const first = unique_list(china_dns_server)[0];
-	if (!empty(first))
-		uci.set(uciconfig, ucimain, 'china_dns_server', first);
-} else if (china_dns_server === 'wan_114') {
-	uci.set(uciconfig, ucimain, 'china_dns_server', '114.114.114.114');
-} else if (!empty(china_dns_server) && match(china_dns_server, /,/)) {
-	uci.set(uciconfig, ucimain, 'china_dns_server', split(china_dns_server, ',')[0]);
-}
 
 set_if_missing(ucimain, 'dashboard_port', '9096');
 set_if_missing(ucimain, 'dashboard_secret', '');
@@ -290,18 +192,6 @@ if (!named_section_exists('subscription'))
 	uci.set(uciconfig, 'subscription', uciconfig);
 set_if_missing('subscription', 'allow_insecure', '1');
 set_if_missing('subscription', 'user_agent', 'HomeProxy');
-
-const auto_firewall = uci.get(uciconfig, uciserver, 'auto_firewall');
-if (!empty(auto_firewall))
-	uci.delete(uciconfig, uciserver, 'auto_firewall');
-
-uci.foreach(uciconfig, uciserver, (cfg) => {
-	if (auto_firewall === '1')
-		uci.set(uciconfig, cfg['.name'], 'firewall', '1');
-	for (let option in ['sniff_override', 'domain_strategy'])
-		if (option_defined(cfg['.name'], option))
-			uci.delete(uciconfig, cfg['.name'], option);
-	});
 
 if (previous_migration_version === '2') {
 	for (let section in collect_sections('app_rule')) {
@@ -331,16 +221,6 @@ if (uci.get(uciconfig, ucimain, 'routing_mode') !== 'global' &&
 
 if (uci.get(uciconfig, ucimain, 'proxy_mode') !== 'tun')
 	uci.set(uciconfig, ucimain, 'proxy_mode', 'tun');
-
-if (uci.get(uciconfig, ucimain, 'main_udp_node') === 'urltest') {
-	const udp_nodes = normalize_node_list(uci.get(uciconfig, ucimain, 'main_udp_urltest_nodes'));
-	if (length(udp_nodes))
-		uci.set(uciconfig, ucimain, 'main_udp_urltest_nodes', udp_nodes);
-	else
-		uci.set(uciconfig, ucimain, 'main_udp_node', 'same');
-}
-
-prune_orphan_urltest_nodes();
 
 if (!empty(uci.changes(uciconfig)))
 	uci.commit(uciconfig);
