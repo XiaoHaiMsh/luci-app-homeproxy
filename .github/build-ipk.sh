@@ -52,7 +52,7 @@ EOF
 
 po2lmo "$PKG_DIR/po/zh_Hans/homeproxy.po" "$TEMP_PKG_DIR/usr/lib/lua/luci/i18n/homeproxy.zh-cn.lmo"
 
-COMMON_DEPS_NOARCH="luci-base firewall4 ip-full kmod-tun flock curl unzip ucode-mod-digest"
+COMMON_DEPS_NOARCH="luci-base firewall4 ip-full kmod-tun flock curl unzip ucode-mod-digest sing-box"
 
 if [ "$PKG_MGR" == "apk" ]; then
 	find "$TEMP_PKG_DIR" -type f,l -printf '/%P\n' | sort > "$TEMP_PKG_DIR/lib/apk/packages/$PKG_NAME.list"
@@ -109,7 +109,7 @@ default_prerm' > "$TEMP_DIR/pre-deinstall"
 		--script "post-install:$TEMP_DIR/post-install" \
 		--script "post-upgrade:$TEMP_DIR/post-upgrade" \
 		--script "pre-deinstall:$TEMP_DIR/pre-deinstall" \
-		--info "depends:libc $COMMON_DEPS_NOARCH sing-box>=1.14.0" \
+		--info "depends:libc $COMMON_DEPS_NOARCH" \
 		${APK_SIGN_KEY:+--sign-key "$APK_SIGN_KEY"} \
 		--files "$TEMP_PKG_DIR" \
 		--output "$TEMP_DIR/${PKG_NAME}_${PKG_VERSION}.apk"
@@ -118,7 +118,7 @@ default_prerm' > "$TEMP_DIR/pre-deinstall"
 else
 	mkdir -p "$TEMP_PKG_DIR/CONTROL/"
 
-	IPK_DEPS="libc, ${COMMON_DEPS_NOARCH// /, }, sing-box (>=1.14.0)"
+	IPK_DEPS="libc, ${COMMON_DEPS_NOARCH// /, }"
 
 	cat > "$TEMP_PKG_DIR/CONTROL/control" <<-EOF
 		Package: $PKG_NAME
