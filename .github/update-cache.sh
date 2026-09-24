@@ -77,12 +77,6 @@ cat >"$tmp_dir/config.json" <<-'EOF'
       },
       {
         "type": "remote",
-        "tag": "geosite-gfw",
-        "format": "binary",
-        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs"
-      },
-      {
-        "type": "remote",
         "tag": "app-rule-youtube-domain",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/youtube.srs"
@@ -158,7 +152,6 @@ cat >"$tmp_dir/config.json" <<-'EOF'
       { "rule_set": "geoip-cn", "outbound": "direct" },
       { "rule_set": "geosite-cn", "outbound": "direct" },
       { "rule_set": "geosite-noncn", "outbound": "direct" },
-      { "rule_set": "geosite-gfw", "outbound": "direct" },
       { "rule_set": "app-rule-youtube-domain", "outbound": "direct" },
       { "rule_set": "app-rule-tiktok-domain", "outbound": "direct" },
       { "rule_set": "app-rule-telegram-domain", "outbound": "direct" },
