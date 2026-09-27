@@ -14,9 +14,17 @@ function allowInsecureConfirm(ev, _section_id, value) {
 }
 
 function parseShareLink(uri, features) {
+	try {
+		return parseShareLinkUnsafe(uri, features);
+	} catch (e) {
+		return null;
+	}
+}
+
+function parseShareLinkUnsafe(uri, features) {
 	let config, url, params;
 
-	uri = uri.split('://');
+	uri = uri.trim().split('://');
 	if (uri[0] && uri[1]) {
 		switch (uri[0]) {
 		case 'anytls':
@@ -105,7 +113,7 @@ function parseShareLink(uri, features) {
 		case 'socks':
 		case 'socks4':
 		case 'socks4a':
-		case 'socsk5':
+		case 'socks5':
 		case 'socks5h':
 			url = new URL('http://' + uri[1]);
 
@@ -389,12 +397,15 @@ function parseShareLink(uri, features) {
 
 			break;
 		case 'vmess':
-			if (uri.includes('&'))
+			if (uri[1].includes('&'))
 				return null;
 
-			uri = JSON.parse(hp.decodeBase64Str(uri[1]));
-
-			if (uri.v != '2')
+			try {
+				uri = JSON.parse(hp.decodeBase64Str(uri[1]));
+			} catch (e) {
+				return null;
+			}
+			if (!uri || uri.v != '2')
 				return null;
 			else if (uri.net === 'kcp')
 				return null;
@@ -1302,7 +1313,7 @@ function renderNodeSettings(section, data, features, main_node) {
 	o.rmempty = false;
 	o.modalonly = true;
 
-	o = s.option(form.Value, 'wireguard_peer_public_key', _('Peer pubkic key'),
+	o = s.option(form.Value, 'wireguard_peer_public_key', _('Peer public key'),
 		_('WireGuard peer public key.'));
 	o.depends('type', 'wireguard');
 	o.validate = L.bind(hp.validateBase64Key, this, 44);
@@ -1596,9 +1607,12 @@ return view.extend({
 
 		let subinfo = [];
 		for (let suburl of (uci.get(data[0], 'subscription', 'subscription_url') || [])) {
-			const url = new URL(suburl);
 			const urlhash = hp.calcStringMD5(suburl.replace(/#.*$/, ''));
-			const title = url.hash ? decodeURIComponent(url.hash.slice(1)) : url.hostname;
+			let title = suburl.replace(/#.*$/, '');
+			try {
+				const url = new URL(suburl);
+				title = url.hash ? decodeURIComponent(url.hash.slice(1)) : url.hostname;
+			} catch (e) {}
 			subinfo.push({ 'hash': urlhash, 'title': title });
 		}
 
@@ -1654,7 +1668,10 @@ return view.extend({
 											config.packet_encoding = packet_encoding
 
 										let nameHash = hp.calcStringMD5(config.label);
-										let sid = uci.add(data[0], 'node', nameHash);
+										let sid = nameHash;
+										for (let n = 2; uci.get(data[0], sid); n++)
+											sid = `${nameHash}_${n}`;
+										uci.add(data[0], 'node', sid);
 										Object.keys(config).forEach((k) => {
 											uci.set(data[0], sid, k, config[k]);
 										});

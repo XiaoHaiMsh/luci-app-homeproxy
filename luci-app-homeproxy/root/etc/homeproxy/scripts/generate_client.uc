@@ -2,7 +2,7 @@
 
 'use strict';
 
-import { readfile } from 'fs';
+import { readfile, unlink } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
@@ -230,6 +230,8 @@ function parse_dnsserver(server_addr, default_protocol) {
 	if (!match(server_addr, /:\/\//))
 		server_addr = (default_protocol || 'udp') + '://' + (validation('ip6addr', server_addr) ? `[${server_addr}]` : server_addr);
 	server_addr = parseURL(server_addr);
+	if (!server_addr)
+		return null;
 
 	return {
 		type: server_addr.protocol,
@@ -546,11 +548,15 @@ function push_dns_server_with_fallback(tag, server_addr, default_protocol, fallb
 		detour: detour
 	};
 
+	const primary = parse_dnsserver(server_addr, default_protocol);
+	if (!primary)
+		return;
+
 	if (!length(fallback_list)) {
 		push(config.dns.servers, {
 			tag,
 			...base,
-			...parse_dnsserver(server_addr, default_protocol)
+			...primary
 		});
 		return;
 	}
@@ -559,16 +565,20 @@ function push_dns_server_with_fallback(tag, server_addr, default_protocol, fallb
 	push(config.dns.servers, {
 		tag: member_tags[0],
 		...base,
-		...parse_dnsserver(server_addr, default_protocol)
+		...primary
 	});
 
 	let idx = 0;
 	for (let addr in fallback_list) {
+		const parsed = parse_dnsserver(addr, default_protocol);
+		if (!parsed)
+			continue;
+
 		let member_tag = `${tag}-fallback-${idx++}`;
 		push(config.dns.servers, {
 			tag: member_tag,
 			...base,
-			...parse_dnsserver(addr, default_protocol)
+			...parsed
 		});
 		push(member_tags, member_tag);
 	}
@@ -674,13 +684,14 @@ if (!isEmpty(main_node)) {
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections');
 
 		if (length(main_urltest_nodes)) {
+			const interval = strToInt(main_urltest_interval);
 			push(config.outbounds, {
 				type: 'urltest',
 				tag: 'main-out',
 				outbounds: map(main_urltest_nodes, (k) => node_out_tag(k)),
 				interval: strToTime(main_urltest_interval),
 				tolerance: strToInt(main_urltest_tolerance),
-				idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
+				idle_timeout: (interval && interval > 1800) ? `${interval * 2}s` : null,
 				interrupt_exist_connections: (main_urltest_interrupt === '1') ? true : null,
 			});
 			urltest_nodes = main_urltest_nodes;
@@ -724,7 +735,7 @@ if (!isEmpty(main_node)) {
 				interrupt_exist_connections: (main_udp_urltest_interrupt === '1') ? true : null,
 			});
 			urltest_nodes = [...urltest_nodes, ...filter(main_udp_urltest_nodes, (l) => !~index(urltest_nodes, l))];
-		} else if (main_udp_node !== 'nil' && first_node_id && main_node !== 'nil') {
+		} else if (main_node !== 'nil') {
 			main_udp_node = 'same';
 		}
 	} else if (dedicated_udp_node) {
@@ -751,9 +762,6 @@ if (!isEmpty(main_node)) {
 }
 
 dedicated_udp_node = !isEmpty(main_udp_node) && !(main_udp_node in ['same', main_node]);
-
-if (isEmpty(config.endpoints))
-	config.endpoints = null;
 
 if (!isEmpty(main_node))
 	config.http_clients = [
@@ -999,13 +1007,14 @@ if (!isEmpty(main_node)) {
 				if (length(rule_urltest_nodes)) {
 					effective_outbound = 'app-' + rule_label + '-out';
 					if (!has_tag(effective_outbound)) {
+						const rule_interval = strToInt(cfg.urltest_interval || '120');
 						push(config.outbounds, {
 							type: 'urltest',
 							tag: effective_outbound,
 							outbounds: map(rule_urltest_nodes, (k) => node_out_tag(k)),
 							interval: strToTime(cfg.urltest_interval || '120'),
 							tolerance: strToInt(cfg.urltest_tolerance || '40'),
-							idle_timeout: (strToInt(cfg.urltest_interval || '120') > 1800) ? `${(cfg.urltest_interval || '120') * 2}s` : null,
+							idle_timeout: (rule_interval && rule_interval > 1800) ? `${rule_interval * 2}s` : null,
 							interrupt_exist_connections: (cfg.urltest_interrupt_exist_connections === '1') ? true : null
 						});
 						for (let k in rule_urltest_nodes)
@@ -1209,7 +1218,7 @@ if (!isEmpty(main_node)) {
 			action: 'reject'
 		});
 
-	config.route.final = 'main-out';
+	config.route.final = isEmpty(main_node) ? 'direct-out' : 'main-out';
 
 	if (length(direct_domain_list))
 		push(config.route.rule_set, {
@@ -1305,5 +1314,10 @@ if (dashboard_enabled)
 		}
 	];
 
+if (isEmpty(config.endpoints))
+	config.endpoints = null;
+
 system('mkdir -p ' + RUN_DIR);
+/* Drop any stale config so a failed generation can never resurrect an old one. */
+unlink(RUN_DIR + '/sing-box-c.json');
 atomicWrite(RUN_DIR + '/sing-box-c.json', sprintf('%.J\n', removeBlankAttrs(config)));

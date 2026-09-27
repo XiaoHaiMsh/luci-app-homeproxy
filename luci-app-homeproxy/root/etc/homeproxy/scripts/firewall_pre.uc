@@ -10,13 +10,9 @@ const cfgname = 'homeproxy';
 const uci = cursor();
 uci.load(cfgname);
 
-const main_node = uci.get(cfgname, 'config', 'main_node') || 'nil';
-
-const outbound_node = main_node;
 const server_enabled = uci.get(cfgname, 'server', 'enabled');
 
-let forward = [],
-    input = [];
+let input = [];
 
 if (server_enabled === '1') {
 	uci.foreach(cfgname, 'server', (s) => {
@@ -28,6 +24,8 @@ if (server_enabled === '1') {
 	});
 }
 
-writefile(RUN_DIR + '/fw4_forward.nft', isEmpty(forward) ? '' : (join('\n', forward) + '\n'));
+/* fw4_forward.nft is kept (empty) for backward compatibility with existing
+ * firewall include configurations; no forward rules are generated here. */
+writefile(RUN_DIR + '/fw4_forward.nft', '');
 
 writefile(RUN_DIR + '/fw4_input.nft', isEmpty(input) ? '' : (join('\n', input) + '\n'));

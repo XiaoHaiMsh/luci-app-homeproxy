@@ -215,7 +215,7 @@ function buildCoreContext() {
 							remoteEl.textContent = _('Checking requirements...');
 						remoteEl.style.color = 'gray';
 					}, 1500)
-					: {};
+					: { state: 'error', message: start.error || _('Another update task is in progress.') };
 
 				if (final.state === 'success') {
 					remoteEl.textContent = _('Updated successfully');

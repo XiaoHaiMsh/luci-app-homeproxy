@@ -807,9 +807,16 @@ function parse_uri(uri) {
 
 			let ss_userinfo = {};
 			if (url.username && url.password)
-				ss_userinfo = [url.username, urldecode(url.password)];
-			else if (url.username)
-				ss_userinfo = split(decodeBase64Str(urldecode(url.username)), ':', 2);
+				ss_userinfo = [urldecode(url.username), urldecode(url.password)];
+			else if (url.username) {
+				const decoded = decodeBase64Str(urldecode(url.username));
+				if (decoded) {
+					/* Only split on the first ':', passwords may contain ':' */
+					const sep = index(decoded, ':');
+					if (sep >= 0)
+						ss_userinfo = [substr(decoded, 0, sep), substr(decoded, sep + 1)];
+				}
+			}
 
 			let ss_plugin, ss_plugin_opts;
 			if (url.search && url.searchParams.plugin) {
@@ -1034,7 +1041,7 @@ function parse_uri(uri) {
 
 			break;
 		case 'vmess':
-			if (match(uri, /&/)) {
+			if (index(uri[1], '&') >= 0) {
 				log(sprintf('Skipping unsupported %s format.', uri[0]));
 				return null;
 			}
@@ -1143,12 +1150,17 @@ function main() {
 		if (mihomo_nodes) {
 			nodes = mihomo_nodes;
 		} else {
+			let parsed = null;
 			try {
-				nodes = json(res).servers || json(res);
+				parsed = json(res);
+			} catch(e) {}
+
+			if (type(parsed) === 'object' || type(parsed) === 'array') {
+				nodes = (type(parsed) === 'object' && parsed.servers) ? parsed.servers : parsed;
 
 				if (type(nodes) === 'array' && length(nodes) && type(nodes[0]) === 'object' && nodes[0].server && nodes[0].method)
 					map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
-			} catch(e) {
+			} else {
 				nodes = decodeBase64Str(res);
 				nodes = nodes ? split(trim(replace(nodes, / /g, '_')), '\n') : [];
 			}
@@ -1181,8 +1193,7 @@ function main() {
 					config.packet_encoding = packet_encoding;
 
 				config.grouphash = groupHash;
-				push(node_result, []);
-				push(node_result[length(node_result)-1], config);
+				push(node_result, [config]);
 				node_cache[groupHash][idHash] = config;
 
 				count++;
@@ -1211,10 +1222,10 @@ function main() {
 		if (!cfg.grouphash)
 			return null;
 
-		if (length(node_cache[cfg.grouphash]) === 0)
+		if (!node_cache[cfg.grouphash] || length(node_cache[cfg.grouphash]) === 0)
 			return null;
 
-		if (!node_cache[cfg.grouphash] || !node_cache[cfg.grouphash][cfg['.name']]) {
+		if (!node_cache[cfg.grouphash][cfg['.name']]) {
 			uci.delete(uciconfig, cfg['.name']);
 			removed++;
 
@@ -1282,7 +1293,8 @@ if (!isEmpty(subscription_urls))
 	} catch(e) {
 		log('[FATAL ERROR] An error occurred during updating subscriptions:');
 		log(sprintf('%s: %s', e.type, e.message));
-		log(e.stacktrace[0].context);
+		if (type(e.stacktrace) === 'array' && length(e.stacktrace))
+			log(e.stacktrace[0].context);
 
 		log('Restarting service...');
 		init_action('homeproxy', 'stop');

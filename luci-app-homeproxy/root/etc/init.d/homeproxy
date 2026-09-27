@@ -131,7 +131,7 @@ start_service() {
 		if [ "$routing_mode" = "bypass_mainland_china" ]; then
 			mkdir -p "$CACHE_DIR"
 			touch "$CACHE_PATH"
-			chown sing-box:sing-box "$CACHE_PATH"
+			chown sing-box:sing-box "$CACHE_PATH" 2>"/dev/null"
 		fi
 
 		local auto_update auto_update_time
@@ -259,9 +259,9 @@ start_service() {
 stop_service() {
 	sync_cron_tag "${CONF}_autosetup" ""
 
-	echo 2>"/dev/null" > "$RUN_DIR/fw4_forward.nft"
-	echo 2>"/dev/null" > "$RUN_DIR/fw4_input.nft"
-	echo 2>"/dev/null" > "$RUN_DIR/fw4_post.nft"
+	: > "$RUN_DIR/fw4_forward.nft" 2>"/dev/null"
+	: > "$RUN_DIR/fw4_input.nft" 2>"/dev/null"
+	: > "$RUN_DIR/fw4_post.nft" 2>"/dev/null"
 	fw4 reload >"/dev/null" 2>&1
 
 	if [ "$HP_RELOAD" != "1" ]; then

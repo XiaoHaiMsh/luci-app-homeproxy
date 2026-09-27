@@ -2,6 +2,7 @@
 
 'use strict';
 
+import { unlink } from 'fs';
 import { cursor } from 'uci';
 
 import {
@@ -112,7 +113,7 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 				uuid: cfg.uuid,
 
 				flow: cfg.vless_flow,
-				alterId: strToInt(cfg.vmess_alterid)
+				alter_id: strToInt(cfg.vmess_alterid)
 			}
 		] : null,
 
@@ -148,7 +149,7 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 				handshake: {
 					server: cfg.tls_reality_server_addr,
 					server_port: strToInt(cfg.tls_reality_server_port)
-					}
+				}
 			} : null
 		} : null,
 
@@ -207,4 +208,6 @@ if (length(config.certificate_providers) === 0)
 	config.certificate_providers = null;
 
 system('mkdir -p ' + RUN_DIR);
+/* Drop any stale config so a failed generation can never resurrect an old one. */
+unlink(RUN_DIR + '/sing-box-s.json');
 atomicWrite(RUN_DIR + '/sing-box-s.json', sprintf('%.J\n', removeBlankAttrs(config)));

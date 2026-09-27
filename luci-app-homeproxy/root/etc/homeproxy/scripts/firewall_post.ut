@@ -26,6 +26,6 @@ chain dstnat {
 	{% if (listen_interfaces): %}
 	meta iifname {{ array_to_nftarr(listen_interfaces) }}
 	{%- endif %}
-	meta nfproto { ipv4, ipv6 } udp dport 53 counter redirect to :{{ dns_port }} comment "!{{ cfgname }}: DNS hijack"
+	meta nfproto { ipv4, ipv6 } meta l4proto { tcp, udp } th dport 53 counter redirect to :{{ dns_port }} comment "!{{ cfgname }}: DNS hijack"
 {% endif %}
 }

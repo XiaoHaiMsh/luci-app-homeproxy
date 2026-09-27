@@ -47,10 +47,13 @@ const methods = {
 				content = replace(content, /\r\n?/g, '\n');
 				if (!match(content, /\n$/))
 					content += '\n';
+			} else {
+				content = '';
 			}
 
 			system(`mkdir -p ${HP_DIR}/resources`);
-			writefile(file, content);
+			if (writefile(file, content) === null)
+				return { result: false, error: 'failed to write file' };
 
 			return { result: true };
 		}

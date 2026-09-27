@@ -104,6 +104,8 @@ if (untar === 0) {
 }
 
 let ok = false;
+let service_stopped = false;
+const was_running = (system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0);
 if (bin_path && length(bin_path) && access(bin_path)) {
 
 	const version_check = system(`${shellQuote(bin_path)} version -n >/dev/null 2>&1`, 15000);
@@ -113,6 +115,7 @@ if (bin_path && length(bin_path) && access(bin_path)) {
 	}
 
 	system('/etc/init.d/homeproxy stop >/dev/null 2>&1');
+	service_stopped = true;
 	const new_bin = `${SINGBOX_BIN}.new`;
 	system(`rm -f ${shellQuote(new_bin)}; cp -f ${shellQuote(bin_path)} ${shellQuote(new_bin)} && chmod 755 ${shellQuote(new_bin)}`);
 	if (access(new_bin) && system(`${shellQuote(new_bin)} version -n >/dev/null 2>&1`, 15000) === 0 &&
@@ -128,7 +131,8 @@ if (bin_path && length(bin_path) && access(bin_path)) {
 }
 
 system(`rm -rf ${shellQuote(extract_dir)} ${shellQuote(tmp_path)}`);
-system('/etc/init.d/homeproxy start >/dev/null 2>&1');
+if (service_stopped && was_running)
+	system('/etc/init.d/homeproxy start >/dev/null 2>&1');
 
 if (!ok)
 	fail('installing', 'installation failed', version);
