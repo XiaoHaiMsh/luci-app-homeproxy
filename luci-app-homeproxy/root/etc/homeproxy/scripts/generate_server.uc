@@ -113,7 +113,7 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 				uuid: cfg.uuid,
 
 				flow: cfg.vless_flow,
-				alter_id: strToInt(cfg.vmess_alterid)
+				alterId: strToInt(cfg.vmess_alterid)
 			}
 		] : null,
 
